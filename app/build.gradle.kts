@@ -18,6 +18,12 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField(
+            "String",
+            "OPENROUTER_API_KEY",
+            "\"${project.findProperty("OPENROUTER_API_KEY") ?: ""}\""
+        )
     }
 
     buildTypes {
@@ -38,10 +44,12 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
 dependencies {
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
