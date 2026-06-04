@@ -12,31 +12,55 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
+import java.util.Properties
 
 class MainActivity : ComponentActivity() {
 
-    private val apiKey = BuildConfig.OPENROUTER_API_KEY
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        val apiKey = getApiKey()
+
         setContent {
 
-            var userPrompt by remember {
-                mutableStateOf("Привет! Представься одной фразой.")
-            }
+            val prompts = mapOf(
 
-            var responseFormat by remember {
-                mutableStateOf("Ответь строго в формате: Я — <кто ты>.")
-            }
+                "Прямой ответ" to """
+                    Дан массив чисел: [3, 7, 2, 9, 4, 8, 1].
+                    Найти второе по величине число в массиве.
+                """.trimIndent(),
 
-            var maxTokens by remember {
-                mutableStateOf("20")
-            }
+                "Решай пошагово" to """
+                    Дан массив чисел: [3, 7, 2, 9, 4, 8, 1].
+                    Решай пошагово.
+                    Найти второе по величине число в массиве.
+                """.trimIndent(),
 
-            var stopSequence by remember {
-                mutableStateOf(".")
+                "Сгенерируй промпт" to """
+                    Составь оптимальный промпт для решения задачи:
+
+                    Дан массив чисел: [3, 7, 2, 9, 4, 8, 1].
+                    Найти второе по величине число в массиве.
+                """.trimIndent(),
+
+                "Группа экспертов" to """
+                    Решите задачу группой экспертов.
+
+                    Эксперт 1 — аналитик.
+                    Эксперт 2 — инженер.
+                    Эксперт 3 — критик.
+
+                    Задача:
+                    Дан массив чисел: [3, 7, 2, 9, 4, 8, 1].
+                    Найти второе по величине число.
+                """.trimIndent()
+            )
+
+            var selectedMethod by remember {
+                mutableStateOf("Прямой ответ")
             }
 
             var llmResponse by remember {
@@ -66,55 +90,33 @@ class MainActivity : ComponentActivity() {
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        OutlinedTextField(
-                            value = userPrompt,
-                            onValueChange = {
-                                userPrompt = it
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = {
-                                Text("Запрос")
-                            }
+                        Text(
+                            text = "Выберите способ решения:",
+                            style = MaterialTheme.typography.titleMedium
                         )
 
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
-                        OutlinedTextField(
-                            value = responseFormat,
-                            onValueChange = {
-                                responseFormat = it
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = {
-                                Text("Описание формата ответа")
+                        prompts.keys.forEach { method ->
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+
+                                RadioButton(
+                                    selected = selectedMethod == method,
+                                    onClick = {
+                                        selectedMethod = method
+                                    }
+                                )
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                Text(
+                                    text = method
+                                )
                             }
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        OutlinedTextField(
-                            value = maxTokens,
-                            onValueChange = {
-                                maxTokens = it
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = {
-                                Text("Максимальное количество токенов")
-                            }
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        OutlinedTextField(
-                            value = stopSequence,
-                            onValueChange = {
-                                stopSequence = it
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = {
-                                Text("Условие завершения (stop)")
-                            }
-                        )
+                        }
 
                         Spacer(modifier = Modifier.height(20.dp))
 
@@ -125,17 +127,16 @@ class MainActivity : ComponentActivity() {
 
                                 sendRequest(
                                     apiKey = apiKey,
-                                    userPrompt = userPrompt,
-                                    responseFormat = responseFormat,
-                                    maxTokens = maxTokens.toIntOrNull() ?: 20,
-                                    stopSequence = stopSequence,
+                                    userPrompt = prompts[selectedMethod] ?: "",
                                     onSuccess = { answer ->
+
                                         runOnUiThread {
                                             llmResponse = answer
                                             isLoading = false
                                         }
                                     },
                                     onError = { error ->
+
                                         runOnUiThread {
                                             llmResponse = error
                                             isLoading = false
@@ -145,7 +146,7 @@ class MainActivity : ComponentActivity() {
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Отправить запрос")
+                            Text("Получить ответ")
                         }
 
                         Spacer(modifier = Modifier.height(20.dp))
@@ -166,6 +167,7 @@ class MainActivity : ComponentActivity() {
                         Card(
                             modifier = Modifier.fillMaxWidth()
                         ) {
+
                             Text(
                                 text = llmResponse,
                                 modifier = Modifier.padding(16.dp)
@@ -177,35 +179,37 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun getApiKey(): String {
+
+        val properties = Properties()
+
+        assets.open("secrets.properties").use {
+            properties.load(it)
+        }
+
+        return properties.getProperty("api_key")
+    }
+
+
     private fun sendRequest(
         apiKey: String,
         userPrompt: String,
-        responseFormat: String,
-        maxTokens: Int,
-        stopSequence: String,
         onSuccess: (String) -> Unit,
         onError: (String) -> Unit
     ) {
 
         val client = OkHttpClient()
 
-        val fullPrompt =
-            "$userPrompt\n$responseFormat\nЗаверши ответ при достижении условия."
-
         val json = JSONObject().apply {
 
             put("model", "openai/gpt-4o-mini")
 
-            put("max_tokens", maxTokens)
-
-            put("stop", org.json.JSONArray().put(stopSequence))
-
             put(
                 "messages",
-                org.json.JSONArray().put(
+                JSONArray().put(
                     JSONObject().apply {
                         put("role", "user")
-                        put("content", fullPrompt)
+                        put("content", userPrompt)
                     }
                 )
             )
