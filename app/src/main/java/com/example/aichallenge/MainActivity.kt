@@ -26,45 +26,13 @@ class MainActivity : ComponentActivity() {
 
         setContent {
 
-            val prompts = mapOf(
-
-                "Прямой ответ" to """
-                    Дан массив чисел: [3, 7, 2, 9, 4, 8, 1].
-                    Найти второе по величине число в массиве.
-                """.trimIndent(),
-
-                "Решай пошагово" to """
-                    Дан массив чисел: [3, 7, 2, 9, 4, 8, 1].
-                    Решай пошагово.
-                    Найти второе по величине число в массиве.
-                """.trimIndent(),
-
-                "Сгенерируй промпт" to """
-                    Составь оптимальный промпт для решения задачи:
-
-                    Дан массив чисел: [3, 7, 2, 9, 4, 8, 1].
-                    Найти второе по величине число в массиве.
-                """.trimIndent(),
-
-                "Группа экспертов" to """
-                    Решите задачу группой экспертов.
-
-                    Эксперт 1 — аналитик.
-                    Эксперт 2 — инженер.
-                    Эксперт 3 — критик.
-
-                    Задача:
-                    Дан массив чисел: [3, 7, 2, 9, 4, 8, 1].
-                    Найти второе по величине число.
-                """.trimIndent()
-            )
-
-            var selectedMethod by remember {
-                mutableStateOf("Прямой ответ")
-            }
+            val userPrompt = """
+                Придумай идею мобильного приложения для студентов.
+                Опиши назначение приложения и основные функции.
+            """.trimIndent()
 
             var llmResponse by remember {
-                mutableStateOf("Ответ появится здесь")
+                mutableStateOf("Нажмите кнопку для получения ответов")
             }
 
             var isLoading by remember {
@@ -91,49 +59,98 @@ class MainActivity : ComponentActivity() {
                         Spacer(modifier = Modifier.height(16.dp))
 
                         Text(
-                            text = "Выберите способ решения:",
+                            text = "Сравнение Temperature: 0 / 0.7 / 1.2",
                             style = MaterialTheme.typography.titleMedium
                         )
 
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        prompts.keys.forEach { method ->
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-
-                                RadioButton(
-                                    selected = selectedMethod == method,
-                                    onClick = {
-                                        selectedMethod = method
-                                    }
-                                )
-
-                                Spacer(modifier = Modifier.width(8.dp))
-
-                                Text(
-                                    text = method
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(20.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
 
                         Button(
                             onClick = {
 
                                 isLoading = true
+                                llmResponse = "Получаем ответы..."
+
+                                val result = StringBuilder()
 
                                 sendRequest(
                                     apiKey = apiKey,
-                                    userPrompt = prompts[selectedMethod] ?: "",
-                                    onSuccess = { answer ->
+                                    userPrompt = userPrompt,
+                                    temperature = 0.0,
+                                    onSuccess = { answer0 ->
 
-                                        runOnUiThread {
-                                            llmResponse = answer
-                                            isLoading = false
-                                        }
+                                        result.append(
+                                            """
+                                            
+====================================
+Temperature = 0
+====================================
+
+$answer0
+
+                                            """.trimIndent()
+                                        )
+
+                                        sendRequest(
+                                            apiKey = apiKey,
+                                            userPrompt = userPrompt,
+                                            temperature = 0.7,
+                                            onSuccess = { answer07 ->
+
+                                                result.append(
+                                                    """
+                                                    
+====================================
+Temperature = 0.7
+====================================
+
+$answer07
+
+                                                    """.trimIndent()
+                                                )
+
+                                                sendRequest(
+                                                    apiKey = apiKey,
+                                                    userPrompt = userPrompt,
+                                                    temperature = 1.2,
+                                                    onSuccess = { answer12 ->
+
+                                                        result.append(
+                                                            """
+                                                            
+====================================
+Temperature = 1.2
+====================================
+
+$answer12
+                                                            """.trimIndent()
+                                                        )
+
+                                                        runOnUiThread {
+
+                                                            llmResponse =
+                                                                result.toString()
+
+                                                            isLoading = false
+                                                        }
+                                                    },
+                                                    onError = { error ->
+
+                                                        runOnUiThread {
+                                                            llmResponse = error
+                                                            isLoading = false
+                                                        }
+                                                    }
+                                                )
+                                            },
+                                            onError = { error ->
+
+                                                runOnUiThread {
+                                                    llmResponse = error
+                                                    isLoading = false
+                                                }
+                                            }
+                                        )
                                     },
                                     onError = { error ->
 
@@ -146,7 +163,7 @@ class MainActivity : ComponentActivity() {
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Получить ответ")
+                            Text("Получить все ответы")
                         }
 
                         Spacer(modifier = Modifier.height(20.dp))
@@ -158,7 +175,7 @@ class MainActivity : ComponentActivity() {
                         Spacer(modifier = Modifier.height(20.dp))
 
                         Text(
-                            text = "Ответ модели:",
+                            text = "Ответы модели:",
                             style = MaterialTheme.typography.titleMedium
                         )
 
@@ -187,13 +204,13 @@ class MainActivity : ComponentActivity() {
             properties.load(it)
         }
 
-        return properties.getProperty("api_key")
+        return properties.getProperty("api_key") ?: ""
     }
-
 
     private fun sendRequest(
         apiKey: String,
         userPrompt: String,
+        temperature: Double,
         onSuccess: (String) -> Unit,
         onError: (String) -> Unit
     ) {
@@ -203,6 +220,8 @@ class MainActivity : ComponentActivity() {
         val json = JSONObject().apply {
 
             put("model", "openai/gpt-4o-mini")
+
+            put("temperature", temperature)
 
             put(
                 "messages",
@@ -241,7 +260,19 @@ class MainActivity : ComponentActivity() {
                 response: Response
             ) {
 
-                val responseBody = response.body?.string()
+                val responseBody = response.body?.string() ?: ""
+
+                if (!response.isSuccessful) {
+
+                    onError(
+                        """
+HTTP ${response.code}
+
+$responseBody
+                        """.trimIndent()
+                    )
+                    return
+                }
 
                 try {
 
@@ -256,7 +287,13 @@ class MainActivity : ComponentActivity() {
                 } catch (e: Exception) {
 
                     onError(
-                        "Ошибка обработки ответа:\n\n${e.message}\n\n$responseBody"
+                        """
+Ошибка обработки ответа
+
+${e.message}
+
+$responseBody
+                        """.trimIndent()
                     )
                 }
             }
