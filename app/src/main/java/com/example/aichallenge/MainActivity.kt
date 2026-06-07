@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -30,6 +31,16 @@ class MainActivity : ComponentActivity() {
                 Придумай идею мобильного приложения для студентов.
                 Опиши назначение приложения и основные функции.
             """.trimIndent()
+
+            val models = mapOf(
+                "Слабая GPT-4o Mini" to "openai/gpt-4o-mini",
+                "Средняя Mistral Small 24B" to "mistralai/mistral-small-3.2-24b-instruct",
+                "Сильная GPT-4.1" to "openai/gpt-4.1"
+            )
+
+            var selectedModel by remember {
+                mutableStateOf("GPT-4o Mini")
+            }
 
             var llmResponse by remember {
                 mutableStateOf("Нажмите кнопку для получения ответов")
@@ -59,9 +70,37 @@ class MainActivity : ComponentActivity() {
                         Spacer(modifier = Modifier.height(16.dp))
 
                         Text(
-                            text = "Сравнение Temperature: 0 / 0.7 / 1.2",
+                            text = "Сравнение слабой, средней и сильной моделей",
                             style = MaterialTheme.typography.titleMedium
                         )
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        Text(
+                            text = "Выберите модель:",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        models.keys.forEach { modelName ->
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+
+                                RadioButton(
+                                    selected = selectedModel == modelName,
+                                    onClick = {
+                                        selectedModel = modelName
+                                    }
+                                )
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                Text(modelName)
+                            }
+                        }
 
                         Spacer(modifier = Modifier.height(16.dp))
 
@@ -69,93 +108,46 @@ class MainActivity : ComponentActivity() {
                             onClick = {
 
                                 isLoading = true
-                                llmResponse = "Получаем ответы..."
-
-                                val result = StringBuilder()
+                                llmResponse = "Получаем ответ..."
 
                                 sendRequest(
                                     apiKey = apiKey,
+                                    model = models[selectedModel] ?: "openai/gpt-4o-mini",
                                     userPrompt = userPrompt,
-                                    temperature = 0.0,
-                                    onSuccess = { answer0 ->
 
-                                        result.append(
-                                            """
-                                            
-====================================
-Temperature = 0
-====================================
+                                    onSuccess = { answer, elapsedTime, totalTokens, cost ->
 
-$answer0
+                                        runOnUiThread {
 
-                                            """.trimIndent()
-                                        )
+                                            llmResponse =
+                                                """
+Модель:
+$selectedModel
 
-                                        sendRequest(
-                                            apiKey = apiKey,
-                                            userPrompt = userPrompt,
-                                            temperature = 0.7,
-                                            onSuccess = { answer07 ->
+Время ответа:
+${elapsedTime} мс
 
-                                                result.append(
-                                                    """
-                                                    
-====================================
-Temperature = 0.7
+Количество токенов:
+$totalTokens
+
+Стоимость:
+$cost
+
 ====================================
 
-$answer07
+$answer
+            """.trimIndent()
 
-                                                    """.trimIndent()
-                                                )
-
-                                                sendRequest(
-                                                    apiKey = apiKey,
-                                                    userPrompt = userPrompt,
-                                                    temperature = 1.2,
-                                                    onSuccess = { answer12 ->
-
-                                                        result.append(
-                                                            """
-                                                            
-====================================
-Temperature = 1.2
-====================================
-
-$answer12
-                                                            """.trimIndent()
-                                                        )
-
-                                                        runOnUiThread {
-
-                                                            llmResponse =
-                                                                result.toString()
-
-                                                            isLoading = false
-                                                        }
-                                                    },
-                                                    onError = { error ->
-
-                                                        runOnUiThread {
-                                                            llmResponse = error
-                                                            isLoading = false
-                                                        }
-                                                    }
-                                                )
-                                            },
-                                            onError = { error ->
-
-                                                runOnUiThread {
-                                                    llmResponse = error
-                                                    isLoading = false
-                                                }
-                                            }
-                                        )
+                                            isLoading = false
+                                        }
                                     },
+
                                     onError = { error ->
 
                                         runOnUiThread {
+
                                             llmResponse = error
+
                                             isLoading = false
                                         }
                                     }
@@ -163,7 +155,7 @@ $answer12
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Получить все ответы")
+                            Text("Получить ответ")
                         }
 
                         Spacer(modifier = Modifier.height(20.dp))
@@ -175,7 +167,7 @@ $answer12
                         Spacer(modifier = Modifier.height(20.dp))
 
                         Text(
-                            text = "Ответы модели:",
+                            text = "Ответ модели:",
                             style = MaterialTheme.typography.titleMedium
                         )
 
@@ -185,10 +177,13 @@ $answer12
                             modifier = Modifier.fillMaxWidth()
                         ) {
 
-                            Text(
-                                text = llmResponse,
-                                modifier = Modifier.padding(16.dp)
-                            )
+                            SelectionContainer {
+
+                                Text(
+                                    text = llmResponse,
+                                    modifier = Modifier.padding(16.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -209,19 +204,26 @@ $answer12
 
     private fun sendRequest(
         apiKey: String,
+        model: String,
         userPrompt: String,
-        temperature: Double,
-        onSuccess: (String) -> Unit,
+        onSuccess: (
+            answer: String,
+            elapsedTime: Long,
+            totalTokens: Int,
+            cost: String
+        ) -> Unit,
         onError: (String) -> Unit
     ) {
 
         val client = OkHttpClient()
 
+        val startTime = System.currentTimeMillis()
+
         val json = JSONObject().apply {
 
-            put("model", "openai/gpt-4o-mini")
+            put("model", model)
 
-            put("temperature", temperature)
+            put("max_tokens", 200)
 
             put(
                 "messages",
@@ -269,20 +271,51 @@ $answer12
 HTTP ${response.code}
 
 $responseBody
-                        """.trimIndent()
+                    """.trimIndent()
                     )
                     return
                 }
 
                 try {
 
-                    val answer = JSONObject(responseBody)
-                        .getJSONArray("choices")
-                        .getJSONObject(0)
-                        .getJSONObject("message")
-                        .getString("content")
+                    val endTime = System.currentTimeMillis()
 
-                    onSuccess(answer)
+                    val elapsedTime =
+                        endTime - startTime
+
+                    val jsonObject =
+                        JSONObject(responseBody)
+
+                    val answer =
+                        jsonObject
+                            .getJSONArray("choices")
+                            .getJSONObject(0)
+                            .getJSONObject("message")
+                            .getString("content")
+
+                    val usage =
+                        jsonObject.optJSONObject("usage")
+
+                    val totalTokens =
+                        usage?.optInt("total_tokens", 0) ?: 0
+
+                    /*
+                     * OpenRouter не всегда возвращает стоимость.
+                     * Если поле отсутствует — выводим "Неизвестно".
+                     */
+                    val cost =
+                        jsonObject
+                            .optString(
+                                "total_cost",
+                                "Неизвестно"
+                            )
+
+                    onSuccess(
+                        answer,
+                        elapsedTime,
+                        totalTokens,
+                        cost
+                    )
 
                 } catch (e: Exception) {
 
@@ -293,7 +326,7 @@ $responseBody
 ${e.message}
 
 $responseBody
-                        """.trimIndent()
+                    """.trimIndent()
                     )
                 }
             }
