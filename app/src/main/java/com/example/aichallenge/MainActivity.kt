@@ -4,18 +4,11 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import okhttp3.*
-import okhttp3.MediaType.Companion.toMediaType
-import org.json.JSONArray
-import org.json.JSONObject
-import java.io.IOException
 import java.util.Properties
 
 class MainActivity : ComponentActivity() {
@@ -25,25 +18,16 @@ class MainActivity : ComponentActivity() {
 
         val apiKey = getApiKey()
 
+        val agent = SimpleAgent(apiKey)
+
         setContent {
 
-            val userPrompt = """
-                Придумай идею мобильного приложения для студентов.
-                Опиши назначение приложения и основные функции.
-            """.trimIndent()
-
-            val models = mapOf(
-                "Слабая GPT-4o Mini" to "openai/gpt-4o-mini",
-                "Средняя Mistral Small 24B" to "mistralai/mistral-small-3.2-24b-instruct",
-                "Сильная GPT-4.1" to "openai/gpt-4.1"
-            )
-
-            var selectedModel by remember {
-                mutableStateOf("GPT-4o Mini")
+            var userInput by remember {
+                mutableStateOf("")
             }
 
-            var llmResponse by remember {
-                mutableStateOf("Нажмите кнопку для получения ответов")
+            var responseText by remember {
+                mutableStateOf("Введите запрос")
             }
 
             var isLoading by remember {
@@ -58,86 +42,48 @@ class MainActivity : ComponentActivity() {
 
                     Column(
                         modifier = Modifier
+                            .fillMaxSize()
                             .padding(16.dp)
-                            .verticalScroll(rememberScrollState())
                     ) {
 
                         Text(
-                            text = "AI Advent Challenge",
-                            style = MaterialTheme.typography.headlineSmall
+                            text = "AI Agent",
+                            style = MaterialTheme.typography.headlineMedium
                         )
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        Text(
-                            text = "Сравнение слабой, средней и сильной моделей",
-                            style = MaterialTheme.typography.titleMedium
+                        OutlinedTextField(
+                            value = userInput,
+                            onValueChange = {
+                                userInput = it
+                            },
+                            label = {
+                                Text("Введите запрос")
+                            },
+                            modifier = Modifier.fillMaxWidth()
                         )
-
-                        Spacer(modifier = Modifier.height(20.dp))
-
-                        Text(
-                            text = "Выберите модель:",
-                            style = MaterialTheme.typography.titleMedium
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        models.keys.forEach { modelName ->
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-
-                                RadioButton(
-                                    selected = selectedModel == modelName,
-                                    onClick = {
-                                        selectedModel = modelName
-                                    }
-                                )
-
-                                Spacer(modifier = Modifier.width(8.dp))
-
-                                Text(modelName)
-                            }
-                        }
 
                         Spacer(modifier = Modifier.height(16.dp))
 
                         Button(
                             onClick = {
 
+                                if (userInput.isBlank()) {
+                                    return@Button
+                                }
+
                                 isLoading = true
-                                llmResponse = "Получаем ответ..."
+                                responseText = "Получаем ответ..."
 
-                                sendRequest(
-                                    apiKey = apiKey,
-                                    model = models[selectedModel] ?: "openai/gpt-4o-mini",
-                                    userPrompt = userPrompt,
+                                agent.processRequest(
+                                    userInput,
 
-                                    onSuccess = { answer, elapsedTime, totalTokens, cost ->
+                                    onSuccess = { answer ->
 
                                         runOnUiThread {
 
-                                            llmResponse =
-                                                """
-Модель:
-$selectedModel
-
-Время ответа:
-${elapsedTime} мс
-
-Количество токенов:
-$totalTokens
-
-Стоимость:
-$cost
-
-====================================
-
-$answer
-            """.trimIndent()
-
+                                            responseText = answer
                                             isLoading = false
                                         }
                                     },
@@ -146,8 +92,7 @@ $answer
 
                                         runOnUiThread {
 
-                                            llmResponse = error
-
+                                            responseText = error
                                             isLoading = false
                                         }
                                     }
@@ -155,7 +100,7 @@ $answer
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Получить ответ")
+                            Text("Отправить")
                         }
 
                         Spacer(modifier = Modifier.height(20.dp))
@@ -166,13 +111,6 @@ $answer
 
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        Text(
-                            text = "Ответ модели:",
-                            style = MaterialTheme.typography.titleMedium
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
                         Card(
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -180,7 +118,7 @@ $answer
                             SelectionContainer {
 
                                 Text(
-                                    text = llmResponse,
+                                    text = responseText,
                                     modifier = Modifier.padding(16.dp)
                                 )
                             }
@@ -200,136 +138,5 @@ $answer
         }
 
         return properties.getProperty("api_key") ?: ""
-    }
-
-    private fun sendRequest(
-        apiKey: String,
-        model: String,
-        userPrompt: String,
-        onSuccess: (
-            answer: String,
-            elapsedTime: Long,
-            totalTokens: Int,
-            cost: String
-        ) -> Unit,
-        onError: (String) -> Unit
-    ) {
-
-        val client = OkHttpClient()
-
-        val startTime = System.currentTimeMillis()
-
-        val json = JSONObject().apply {
-
-            put("model", model)
-
-            put("max_tokens", 200)
-
-            put(
-                "messages",
-                JSONArray().put(
-                    JSONObject().apply {
-                        put("role", "user")
-                        put("content", userPrompt)
-                    }
-                )
-            )
-        }
-
-        val body = RequestBody.create(
-            "application/json".toMediaType(),
-            json.toString()
-        )
-
-        val request = Request.Builder()
-            .url("https://openrouter.ai/api/v1/chat/completions")
-            .addHeader("Authorization", "Bearer $apiKey")
-            .addHeader("Content-Type", "application/json")
-            .post(body)
-            .build()
-
-        client.newCall(request).enqueue(object : Callback {
-
-            override fun onFailure(
-                call: Call,
-                e: IOException
-            ) {
-                onError("Ошибка сети: ${e.message}")
-            }
-
-            override fun onResponse(
-                call: Call,
-                response: Response
-            ) {
-
-                val responseBody = response.body?.string() ?: ""
-
-                if (!response.isSuccessful) {
-
-                    onError(
-                        """
-HTTP ${response.code}
-
-$responseBody
-                    """.trimIndent()
-                    )
-                    return
-                }
-
-                try {
-
-                    val endTime = System.currentTimeMillis()
-
-                    val elapsedTime =
-                        endTime - startTime
-
-                    val jsonObject =
-                        JSONObject(responseBody)
-
-                    val answer =
-                        jsonObject
-                            .getJSONArray("choices")
-                            .getJSONObject(0)
-                            .getJSONObject("message")
-                            .getString("content")
-
-                    val usage =
-                        jsonObject.optJSONObject("usage")
-
-                    val totalTokens =
-                        usage?.optInt("total_tokens", 0) ?: 0
-
-                    /*
-                     * OpenRouter не всегда возвращает стоимость.
-                     * Если поле отсутствует — выводим "Неизвестно".
-                     */
-                    val cost =
-                        jsonObject
-                            .optString(
-                                "total_cost",
-                                "Неизвестно"
-                            )
-
-                    onSuccess(
-                        answer,
-                        elapsedTime,
-                        totalTokens,
-                        cost
-                    )
-
-                } catch (e: Exception) {
-
-                    onError(
-                        """
-Ошибка обработки ответа
-
-${e.message}
-
-$responseBody
-                    """.trimIndent()
-                    )
-                }
-            }
-        })
     }
 }
