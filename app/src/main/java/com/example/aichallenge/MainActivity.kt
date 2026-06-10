@@ -18,7 +18,10 @@ class MainActivity : ComponentActivity() {
 
         val apiKey = getApiKey()
 
-        val agent = SimpleAgent(apiKey)
+        val agent = SimpleAgent(
+            context = applicationContext,
+            apiKey = apiKey
+        )
 
         setContent {
 
