@@ -10,6 +10,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import java.util.Properties
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 
 class MainActivity : ComponentActivity() {
 
@@ -82,11 +84,39 @@ class MainActivity : ComponentActivity() {
                                 agent.processRequest(
                                     userInput,
 
-                                    onSuccess = { answer ->
+                                    onSuccess = { answer, stats ->
 
                                         runOnUiThread {
 
-                                            responseText = answer
+                                            responseText =
+                                                """
+Ответ:
+
+$answer
+
+──────────────────
+
+Токены запроса:
+${stats.promptTokens}
+
+Токены ответа:
+${stats.completionTokens}
+
+Всего токенов:
+${stats.totalTokens}
+
+Токены истории:
+${stats.historyTokens}
+
+Стоимость запроса:
+${"%.8f".format(stats.estimatedCost)} $
+
+Заполнение контекста:
+${stats.contextUsagePercent}%
+
+${stats.contextWarning}
+            """.trimIndent()
+
                                             isLoading = false
                                         }
                                     },
@@ -115,15 +145,26 @@ class MainActivity : ComponentActivity() {
                         Spacer(modifier = Modifier.height(20.dp))
 
                         Card(
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
                         ) {
 
                             SelectionContainer {
 
-                                Text(
-                                    text = responseText,
-                                    modifier = Modifier.padding(16.dp)
-                                )
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .verticalScroll(
+                                            rememberScrollState()
+                                        )
+                                        .padding(16.dp)
+                                ) {
+
+                                    Text(
+                                        text = responseText
+                                    )
+                                }
                             }
                         }
                     }

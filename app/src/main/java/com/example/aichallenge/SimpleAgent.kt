@@ -1,8 +1,15 @@
 package com.example.aichallenge
 
 import android.content.Context
-import okhttp3.*
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody
+import okhttp3.Response
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -13,7 +20,25 @@ class SimpleAgent(
     private val apiKey: String
 ) {
 
+    companion object {
+
+        private const val MODEL = "openai/gpt-4o-mini"
+
+        private const val CONTEXT_WINDOW = 128000
+
+        private const val INPUT_PRICE_PER_TOKEN =
+            0.15 / 1_000_000
+
+        private const val OUTPUT_PRICE_PER_TOKEN =
+            0.60 / 1_000_000
+    }
+
     private val client = OkHttpClient()
+
+    private val gson = Gson()
+
+    private val historyType =
+        object : TypeToken<MutableList<ChatMessage>>() {}.type
 
     private val historyFile =
         File(context.filesDir, "history.json")
@@ -27,7 +52,10 @@ class SimpleAgent(
 
     fun processRequest(
         userRequest: String,
-        onSuccess: (String) -> Unit,
+        onSuccess: (
+            answer: String,
+            stats: AgentStats
+        ) -> Unit,
         onError: (String) -> Unit
     ) {
 
@@ -44,7 +72,7 @@ class SimpleAgent(
 
         json.put(
             "model",
-            "openai/gpt-4o-mini"
+            MODEL
         )
 
         val messagesArray = JSONArray()
@@ -53,6 +81,7 @@ class SimpleAgent(
 
             messagesArray.put(
                 JSONObject().apply {
+
                     put("role", it.role)
                     put("content", it.content)
                 }
@@ -124,6 +153,27 @@ class SimpleAgent(
                                 .getJSONObject("message")
                                 .getString("content")
 
+                        val usage =
+                            jsonObject.optJSONObject("usage")
+
+                        val promptTokens =
+                            usage?.optInt(
+                                "prompt_tokens",
+                                0
+                            ) ?: 0
+
+                        val completionTokens =
+                            usage?.optInt(
+                                "completion_tokens",
+                                0
+                            ) ?: 0
+
+                        val totalTokens =
+                            usage?.optInt(
+                                "total_tokens",
+                                0
+                            ) ?: 0
+
                         messages.add(
                             ChatMessage(
                                 role = "assistant",
@@ -133,7 +183,60 @@ class SimpleAgent(
 
                         saveHistory()
 
-                        onSuccess(answer)
+                        val historyTokens =
+                            estimateHistoryTokens()
+
+                        val cost =
+                            promptTokens *
+                                    INPUT_PRICE_PER_TOKEN +
+                                    completionTokens *
+                                    OUTPUT_PRICE_PER_TOKEN
+
+                        val usagePercent =
+                            ((historyTokens.toDouble()
+                                    / CONTEXT_WINDOW) * 100)
+                                .toInt()
+
+                        val warning =
+                            when {
+                                usagePercent >= 95 ->
+                                    "❌ Контекст почти переполнен"
+
+                                usagePercent >= 80 ->
+                                    "⚠ История занимает $usagePercent% контекста"
+
+                                else ->
+                                    "Контекст в норме"
+                            }
+
+                        val stats =
+                            AgentStats(
+                                promptTokens =
+                                    promptTokens,
+
+                                completionTokens =
+                                    completionTokens,
+
+                                totalTokens =
+                                    totalTokens,
+
+                                historyTokens =
+                                    historyTokens,
+
+                                estimatedCost =
+                                    cost,
+
+                                contextUsagePercent =
+                                    usagePercent,
+
+                                contextWarning =
+                                    warning
+                            )
+
+                        onSuccess(
+                            answer,
+                            stats
+                        )
 
                     } catch (e: Exception) {
 
@@ -145,28 +248,32 @@ class SimpleAgent(
             })
     }
 
+    private fun estimateHistoryTokens(): Int {
+
+        return messages.sumOf {
+
+            val words =
+                it.content
+                    .trim()
+                    .split("\\s+".toRegex())
+                    .size
+
+            (words * 1.3).toInt()
+        }
+    }
+
     private fun saveHistory() {
 
         try {
 
-            val jsonArray = JSONArray()
+            val json =
+                gson.toJson(messages)
 
-            messages.forEach {
+            historyFile.writeText(json)
 
-                jsonArray.put(
-                    JSONObject().apply {
+        } catch (e: Exception) {
 
-                        put("role", it.role)
-                        put("content", it.content)
-                    }
-                )
-            }
-
-            historyFile.writeText(
-                jsonArray.toString()
-            )
-
-        } catch (_: Exception) {
+            e.printStackTrace()
         }
     }
 
@@ -174,32 +281,28 @@ class SimpleAgent(
 
         try {
 
-            if (!historyFile.exists()) {
+            if (!historyFile.exists())
                 return
-            }
 
-            val content =
+            val json =
                 historyFile.readText()
 
-            val jsonArray =
-                JSONArray(content)
+            val loadedMessages:
+                    MutableList<ChatMessage> =
+                gson.fromJson(
+                    json,
+                    historyType
+                )
 
             messages.clear()
 
-            for (i in 0 until jsonArray.length()) {
+            messages.addAll(
+                loadedMessages
+            )
 
-                val item =
-                    jsonArray.getJSONObject(i)
+        } catch (e: Exception) {
 
-                messages.add(
-                    ChatMessage(
-                        role = item.getString("role"),
-                        content = item.getString("content")
-                    )
-                )
-            }
-
-        } catch (_: Exception) {
+            e.printStackTrace()
         }
     }
 
@@ -208,5 +311,15 @@ class SimpleAgent(
         messages.clear()
 
         saveHistory()
+    }
+
+    fun getHistorySize(): Int {
+
+        return messages.size
+    }
+
+    fun getHistoryTokens(): Int {
+
+        return estimateHistoryTokens()
     }
 }
