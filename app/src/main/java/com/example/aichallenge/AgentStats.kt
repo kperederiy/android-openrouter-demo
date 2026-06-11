@@ -5,6 +5,7 @@ data class AgentStats(
     val completionTokens: Int,
     val totalTokens: Int,
     val historyTokens: Int,
+    val summaryTokens: Int,
     val estimatedCost: Double,
     val contextUsagePercent: Int,
     val contextWarning: String
