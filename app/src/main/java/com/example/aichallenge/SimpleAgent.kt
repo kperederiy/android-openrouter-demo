@@ -50,8 +50,32 @@ class SimpleAgent(
     private val summaryFile =
         File(context.filesDir, "summary.txt")
 
+    private val branchesFile =
+        File(
+            context.filesDir,
+            "branches.json"
+        )
+
+
+    private val factsFile =
+        File(
+            context.filesDir,
+            "facts.json"
+        )
+
+    private var currentStrategy =
+        MemoryStrategy.SLIDING_WINDOW
+
     private val messages =
         mutableListOf<ChatMessage>()
+
+    private val facts =
+        mutableMapOf<String, String>()
+
+    private val branches =
+        mutableMapOf<String, DialogBranch>()
+
+    private var currentBranchId = "main"
 
     private var summary = ""
 
@@ -60,6 +84,22 @@ class SimpleAgent(
         loadSummary()
 
         loadHistory()
+
+        loadFacts()
+
+        loadBranches()
+
+        if (!branches.containsKey("main")) {
+
+            branches["main"] =
+                DialogBranch(
+                    id = "main",
+                    messages =
+                        messages.toMutableList()
+                )
+
+            saveBranches()
+        }
     }
 
     fun processRequest(
@@ -77,6 +117,21 @@ class SimpleAgent(
                 content = userRequest
             )
         )
+
+        if (
+            currentStrategy ==
+            MemoryStrategy.BRANCHING
+        ) {
+
+            branches[currentBranchId] =
+                DialogBranch(
+                    id = currentBranchId,
+                    messages =
+                        messages.toMutableList()
+                )
+
+            saveBranches()
+        }
 
         saveHistory()
 
@@ -108,15 +163,92 @@ $summary
             )
         }
 
-        messages.forEach {
+        when(currentStrategy) {
 
-            messagesArray.put(
-                JSONObject().apply {
+            MemoryStrategy.SLIDING_WINDOW -> {
 
-                    put("role", it.role)
-                    put("content", it.content)
+                messages
+                    .takeLast(10)
+                    .forEach {
+                        messagesArray.put(
+                            JSONObject().apply {
+
+                                put("role", it.role)
+                                put("content", it.content)
+                            }
+                        )
+                    }
+            }
+
+            MemoryStrategy.STICKY_FACTS -> {
+
+                if(facts.isNotEmpty()) {
+
+                    messagesArray.put(
+                        JSONObject().apply {
+
+                            put(
+                                "role",
+                                "system"
+                            )
+
+                            put(
+                                "content",
+                                buildFactsPrompt()
+                            )
+                        }
+                    )
                 }
-            )
+
+                messages
+                    .takeLast(10)
+                    .forEach {
+                        messagesArray.put(
+                            JSONObject().apply {
+
+                                put("role", it.role)
+                                put("content", it.content)
+                            }
+                        )
+                    }
+            }
+
+            MemoryStrategy.BRANCHING -> {
+
+                messages.forEach {
+                    messagesArray.put(
+                        JSONObject().apply {
+
+                            put("role", it.role)
+                            put("content", it.content)
+                        }
+                    )
+                }
+            }
+        }
+
+        when(currentStrategy) {
+
+            MemoryStrategy.SLIDING_WINDOW ->
+                applySlidingWindow()
+
+            MemoryStrategy.STICKY_FACTS -> {
+
+                updateFacts(userRequest)
+
+                applySlidingWindow()
+            }
+
+            MemoryStrategy.BRANCHING -> {
+
+                branches[currentBranchId]
+                    ?.messages
+                    ?.apply {
+
+                        clear()
+                        addAll(messages)
+                    }
+            }
         }
 
         json.put(
@@ -270,7 +402,10 @@ $summary
                                     usagePercent,
 
                                 contextWarning =
-                                    warning
+                                    warning,
+
+                                strategy =
+                                    currentStrategy.name
                             )
 
                         onSuccess(
@@ -525,4 +660,241 @@ $textToSummarize
 
         return estimateHistoryTokens()
     }
+
+    fun setStrategy(
+        strategy: MemoryStrategy
+    ) {
+        currentStrategy = strategy
+    }
+
+    fun createCheckpoint(
+        branchName: String
+    ) {
+
+        branches[branchName] =
+            DialogBranch(
+                id = branchName,
+                messages =
+                    messages.toMutableList()
+            )
+
+        saveBranches()
+    }
+
+    fun switchBranch(
+        branchName: String
+    ) {
+
+        branches[currentBranchId] =
+            DialogBranch(
+                id = currentBranchId,
+                messages =
+                    messages.toMutableList()
+            )
+
+        val branch =
+            branches[branchName]
+                ?: return
+
+        messages.clear()
+
+        messages.addAll(
+            branch.messages
+        )
+
+        currentBranchId =
+            branchName
+
+        saveHistory()
+    }
+    private fun loadFacts() {
+
+        if (!factsFile.exists())
+            return
+
+        val type =
+            object :
+                TypeToken<
+                        MutableMap<String, String>
+                        >() {}.type
+
+        val loaded =
+            gson.fromJson<
+                    MutableMap<String, String>
+                    >(
+                factsFile.readText(),
+                type
+            )
+
+        facts.putAll(loaded)
+    }
+
+    private fun saveFacts() {
+
+        factsFile.writeText(
+            gson.toJson(facts)
+        )
+    }
+
+    private fun updateFacts(
+        userText: String
+    ) {
+
+        val text =
+            userText.lowercase()
+
+        if (
+            text.contains("меня зовут")
+        ) {
+
+            facts["name"] =
+                userText
+        }
+
+        if (
+            text.contains("моя цель")
+        ) {
+
+            facts["goal"] =
+                userText
+        }
+
+        saveFacts()
+    }
+
+    private fun buildFactsPrompt(): String {
+
+        return buildString {
+
+            append(
+                "Известные факты:\n"
+            )
+
+            facts.forEach {
+
+                append(
+                    "${it.key}: ${it.value}\n"
+                )
+            }
+        }
+    }
+
+    private fun applySlidingWindow() {
+
+        if (
+            messages.size <= 10
+        ) return
+
+        val recent =
+            messages.takeLast(10)
+
+        messages.clear()
+
+        messages.addAll(recent)
+    }
+
+    fun loadDemoConversation() {
+
+        val demoMessages = listOf(
+
+            "Нужно собрать ТЗ на приложение доставки еды.",
+            "Проект делаем под Android.",
+            "Используем Kotlin и Jetpack Compose.",
+            "Бюджет ограничен 5000 долларов.",
+            "Важно выпустить MVP за 2 месяца.",
+            "Нужна регистрация по номеру телефона.",
+            "Оплата через Stripe.",
+            "Нужна история заказов.",
+            "Админ-панель пока не нужна.",
+            "Главная цель — проверить спрос.",
+            "Интерфейс должен быть простым.",
+            "Целевая аудитория — студенты.",
+            "Основной рынок — Амстердам.",
+            "Запомни все требования.",
+            "Сформируй краткое ТЗ."
+        )
+
+        messages.clear()
+
+        demoMessages.forEach {
+
+            messages.add(
+                ChatMessage(
+                    role = "user",
+                    content = it
+                )
+            )
+        }
+
+        saveHistory()
+    }
+
+    private fun loadBranches() {
+
+        try {
+
+            if (!branchesFile.exists())
+                return
+
+            val type =
+                object :
+                    TypeToken<
+                            MutableMap<String, DialogBranch>
+                            >() {}.type
+
+            val loaded:
+                    MutableMap<String, DialogBranch> =
+                gson.fromJson(
+                    branchesFile.readText(),
+                    type
+                )
+
+            branches.clear()
+
+            branches.putAll(loaded)
+
+        } catch (e: Exception) {
+
+            e.printStackTrace()
+        }
+    }
+
+    private fun saveBranches() {
+
+        try {
+
+            branchesFile.writeText(
+                gson.toJson(branches)
+            )
+
+        } catch (e: Exception) {
+
+            e.printStackTrace()
+        }
+    }
+
+    fun getBranches(): List<String> {
+
+        return branches.keys.toList()
+    }
+
+    fun getCurrentBranch(): String {
+
+        return currentBranchId
+    }
+
+    fun createBranchFromCurrent(
+        branchName: String
+    ) {
+
+        branches[branchName] =
+            DialogBranch(
+                id = branchName,
+                messages =
+                    messages.toMutableList()
+            )
+
+        saveBranches()
+    }
+
 }

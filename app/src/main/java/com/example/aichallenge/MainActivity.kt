@@ -25,6 +25,8 @@ class MainActivity : ComponentActivity() {
             apiKey = apiKey
         )
 
+
+
         setContent {
 
             var userInput by remember {
@@ -36,6 +38,29 @@ class MainActivity : ComponentActivity() {
             }
 
             var isLoading by remember {
+                mutableStateOf(false)
+            }
+
+            var selectedStrategy by remember {
+
+                mutableStateOf(
+                    MemoryStrategy.SLIDING_WINDOW
+                )
+            }
+
+            var branches by remember {
+                mutableStateOf(
+                    agent.getBranches()
+                )
+            }
+
+            var currentBranch by remember {
+                mutableStateOf(
+                    agent.getCurrentBranch()
+                )
+            }
+
+            var showBranchMenu by remember {
                 mutableStateOf(false)
             }
 
@@ -71,6 +96,166 @@ class MainActivity : ComponentActivity() {
 
                         Spacer(modifier = Modifier.height(16.dp))
 
+                        Text(
+                            text = "Стратегия памяти"
+                        )
+
+                        Spacer(
+                            modifier = Modifier.height(8.dp)
+                        )
+
+                        SingleChoiceSegmentedButtonRow {
+
+                            MemoryStrategy.entries.forEachIndexed { index, strategy ->
+
+                                SegmentedButton(
+                                    selected = selectedStrategy == strategy,
+                                    onClick = {
+                                        selectedStrategy = strategy
+                                        agent.setStrategy(strategy)
+                                    },
+                                    shape = SegmentedButtonDefaults.itemShape(
+                                        index = index,
+                                        count = MemoryStrategy.entries.size
+                                    )
+                                ) {
+                                    Text(strategy.title)
+                                }
+                            }
+                        }
+
+                        Button(
+                            onClick = {
+
+                                agent.loadDemoConversation()
+
+                                responseText =
+                                    "Тестовый диалог загружен.\n" +
+                                            "Теперь задайте вопрос:\n" +
+                                            "\"Какой бюджет проекта?\""
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Загрузить тестовый диалог")
+                        }
+
+                        Button(
+                            onClick = {
+
+                                val branchName =
+                                    "branch-" +
+                                            System.currentTimeMillis()
+
+                                agent.createCheckpoint(
+                                    branchName
+                                )
+
+                                branches =
+                                    agent.getBranches()
+
+                                responseText =
+                                    "Создан checkpoint:\n$branchName"
+                            }
+                        ) {
+                            Text("Checkpoint")
+                        }
+
+                        Button(
+                            onClick = {
+
+                                val branchName =
+                                    "child-" +
+                                            System.currentTimeMillis()
+
+                                agent.createBranchFromCurrent(
+                                    branchName
+                                )
+
+                                branches =
+                                    agent.getBranches()
+
+                                responseText =
+                                    "Создана новая ветка:\n$branchName"
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Создать ветку")
+                        }
+
+                        Spacer(
+                            modifier = Modifier.height(12.dp)
+                        )
+
+                        Text(
+                            text = "Текущая ветка: $currentBranch",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+
+                        Spacer(
+                            modifier = Modifier.height(8.dp)
+                        )
+
+                        Button(
+                            onClick = {
+                                showBranchMenu = true
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Переключить ветку")
+                        }
+
+                        if (showBranchMenu) {
+
+                            AlertDialog(
+                                onDismissRequest = {
+                                    showBranchMenu = false
+                                },
+
+                                title = {
+                                    Text("Выберите ветку")
+                                },
+
+                                text = {
+
+                                    Column {
+
+                                        branches.forEach { branch ->
+
+                                            Button(
+                                                onClick = {
+
+                                                    agent.switchBranch(
+                                                        branch
+                                                    )
+
+                                                    currentBranch =
+                                                        branch
+
+                                                    showBranchMenu =
+                                                        false
+
+                                                    responseText =
+                                                        "Переключено на ветку:\n$branch"
+                                                },
+                                                modifier =
+                                                    Modifier.fillMaxWidth()
+                                            ) {
+
+                                                Text(branch)
+                                            }
+
+                                            Spacer(
+                                                modifier =
+                                                    Modifier.height(4.dp)
+                                            )
+                                        }
+                                    }
+                                },
+
+                                confirmButton = {}
+                            )
+                        }
+
                         Button(
                             onClick = {
 
@@ -104,6 +289,9 @@ ${stats.completionTokens}
 
 Всего токенов:
 ${stats.totalTokens}
+
+Стратегия:
+${stats.strategy}
 
 Токены истории:
 ${stats.historyTokens}
