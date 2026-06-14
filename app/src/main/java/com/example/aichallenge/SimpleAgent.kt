@@ -109,20 +109,7 @@ class SimpleAgent(
             )
         )
 
-        if (
-            currentStrategy ==
-            MemoryStrategy.BRANCHING
-        ) {
-
-            branches[currentBranchId] =
-                DialogBranch(
-                    id = currentBranchId,
-                    messages =
-                        messages.toMutableList()
-                )
-
-            saveBranches()
-        }
+        updateFacts(userRequest)
 
         saveHistory()
 
@@ -140,7 +127,7 @@ class SimpleAgent(
             MemoryStrategy.SLIDING_WINDOW -> {
 
                 messages
-                    .takeLast(10)
+                    .takeLast(MAX_RECENT_MESSAGES)
                     .forEach {
                         messagesArray.put(
                             JSONObject().apply {
@@ -173,7 +160,7 @@ class SimpleAgent(
                 }
 
                 messages
-                    .takeLast(10)
+                    .takeLast(MAX_RECENT_MESSAGES)
                     .forEach {
                         messagesArray.put(
                             JSONObject().apply {
@@ -205,8 +192,6 @@ class SimpleAgent(
                 applySlidingWindow()
 
             MemoryStrategy.STICKY_FACTS -> {
-
-                updateFacts(userRequest)
 
                 applySlidingWindow()
             }
@@ -315,6 +300,28 @@ class SimpleAgent(
                                 content = answer
                             )
                         )
+
+                        if (
+                            currentStrategy ==
+                            MemoryStrategy.SLIDING_WINDOW
+                        ) {
+                            applySlidingWindow()
+                        }
+
+                        if (
+                            currentStrategy ==
+                            MemoryStrategy.BRANCHING
+                        ) {
+
+                            branches[currentBranchId] =
+                                DialogBranch(
+                                    id = currentBranchId,
+                                    messages =
+                                        messages.toMutableList()
+                                )
+
+                            saveBranches()
+                        }
 
                         saveHistory()
 
@@ -439,24 +446,6 @@ class SimpleAgent(
             e.printStackTrace()
         }
     }
-
-    fun clearHistory() {
-
-        messages.clear()
-
-        saveHistory()
-    }
-
-    fun getHistorySize(): Int {
-
-        return messages.size
-    }
-
-    fun getHistoryTokens(): Int {
-
-        return estimateHistoryTokens()
-    }
-
     fun setStrategy(
         strategy: MemoryStrategy
     ) {
@@ -555,6 +544,54 @@ class SimpleAgent(
                 userText
         }
 
+        if (
+            text.contains("бюджет")
+        ) {
+
+            facts["budget"] =
+                userText
+        }
+
+
+
+        if (
+            text.contains("срок")
+        ) {
+
+            facts["deadline"] =
+                userText
+        }
+
+
+
+        if (
+            text.contains("используем")
+        ) {
+
+            facts["technology"] =
+                userText
+        }
+
+
+
+        if (
+            text.contains("ограничение")
+        ) {
+
+            facts["restriction"] =
+                userText
+        }
+
+
+
+        if (
+            text.contains("решили")
+        ) {
+
+            facts["decision"] =
+                userText
+        }
+
         saveFacts()
     }
 
@@ -578,11 +615,11 @@ class SimpleAgent(
     private fun applySlidingWindow() {
 
         if (
-            messages.size <= 10
+            messages.size <= MAX_RECENT_MESSAGES
         ) return
 
         val recent =
-            messages.takeLast(10)
+            messages.takeLast(MAX_RECENT_MESSAGES)
 
         messages.clear()
 
