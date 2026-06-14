@@ -33,8 +33,6 @@ class SimpleAgent(
             0.60 / 1_000_000
 
         private const val MAX_RECENT_MESSAGES = 10
-
-        private const val SUMMARY_TRIGGER = 20
     }
 
     private val client = OkHttpClient()
@@ -46,9 +44,6 @@ class SimpleAgent(
 
     private val historyFile =
         File(context.filesDir, "history.json")
-
-    private val summaryFile =
-        File(context.filesDir, "summary.txt")
 
     private val branchesFile =
         File(
@@ -77,11 +72,7 @@ class SimpleAgent(
 
     private var currentBranchId = "main"
 
-    private var summary = ""
-
     init {
-
-        loadSummary()
 
         loadHistory()
 
@@ -143,25 +134,6 @@ class SimpleAgent(
         )
 
         val messagesArray = JSONArray()
-
-        if (summary.isNotBlank()) {
-
-            messagesArray.put(
-                JSONObject().apply {
-
-                    put("role", "system")
-
-                    put(
-                        "content",
-                        """
-История предыдущего диалога:
-
-$summary
-                        """.trimIndent()
-                    )
-                }
-            )
-        }
 
         when(currentStrategy) {
 
@@ -344,15 +316,10 @@ $summary
                             )
                         )
 
-                        compressHistoryIfNeeded()
-
                         saveHistory()
 
                         val historyTokens =
                             estimateHistoryTokens()
-
-                        val summaryTokens =
-                            estimateSummaryTokens()
 
                         val cost =
                             promptTokens *
@@ -361,8 +328,7 @@ $summary
                                     OUTPUT_PRICE_PER_TOKEN
 
                         val usagePercent =
-                            (((historyTokens + summaryTokens)
-                                .toDouble()
+                            ((historyTokens.toDouble()
                                     / CONTEXT_WINDOW) * 100)
                                 .toInt()
 
@@ -392,9 +358,6 @@ $summary
                                 historyTokens =
                                     historyTokens,
 
-                                summaryTokens =
-                                    summaryTokens,
-
                                 estimatedCost =
                                     cost,
 
@@ -423,145 +386,6 @@ $summary
             })
     }
 
-    private fun compressHistoryIfNeeded() {
-
-        if (messages.size <= SUMMARY_TRIGGER)
-            return
-
-        val oldMessages =
-            messages.dropLast(
-                MAX_RECENT_MESSAGES
-            )
-
-        val summaryText =
-            buildString {
-
-                if (summary.isNotBlank()) {
-
-                    append(summary)
-                    append("\n\n")
-                }
-
-                oldMessages.forEach {
-
-                    append(it.role)
-                    append(": ")
-                    append(it.content)
-                    append("\n")
-                }
-            }
-
-        summary =
-            generateSummaryWithLLM(
-                summaryText
-            )
-
-        saveSummary()
-
-        val recentMessages =
-            messages.takeLast(
-                MAX_RECENT_MESSAGES
-            )
-
-        messages.clear()
-
-        messages.addAll(
-            recentMessages
-        )
-    }
-
-    private fun generateSummaryWithLLM(
-        textToSummarize: String
-    ): String {
-
-        val prompt =
-            """
-Сделай краткое summary диалога.
-
-Сохрани:
-
-- важные факты о пользователе
-- предпочтения пользователя
-- цели и задачи
-- принятые решения
-- важный контекст
-
-Не более 300 слов.
-
-Диалог:
-
-$textToSummarize
-            """.trimIndent()
-
-        return try {
-
-            val json =
-                JSONObject().apply {
-
-                    put("model", MODEL)
-
-                    put(
-                        "messages",
-                        JSONArray().put(
-                            JSONObject().apply {
-
-                                put("role", "user")
-
-                                put(
-                                    "content",
-                                    prompt
-                                )
-                            }
-                        )
-                    )
-
-                    put("max_tokens", 500)
-                }
-
-            val body = RequestBody.create(
-                "application/json".toMediaType(),
-                json.toString()
-            )
-
-            val request =
-                Request.Builder()
-                    .url("https://openrouter.ai/api/v1/chat/completions")
-                    .addHeader(
-                        "Authorization",
-                        "Bearer $apiKey"
-                    )
-                    .addHeader(
-                        "Content-Type",
-                        "application/json"
-                    )
-                    .post(body)
-                    .build()
-
-            client.newCall(request)
-                .execute()
-                .use { response ->
-
-                    if (!response.isSuccessful) {
-
-                        return textToSummarize.take(2000)
-                    }
-
-                    val responseBody =
-                        response.body?.string() ?: ""
-
-                    JSONObject(responseBody)
-                        .getJSONArray("choices")
-                        .getJSONObject(0)
-                        .getJSONObject("message")
-                        .getString("content")
-                }
-
-        } catch (e: Exception) {
-
-            textToSummarize.take(2000)
-        }
-    }
-
     private fun estimateHistoryTokens(): Int {
 
         return messages.sumOf {
@@ -574,16 +398,6 @@ $textToSummarize
 
             (words * 1.3).toInt()
         }
-    }
-
-    private fun estimateSummaryTokens(): Int {
-
-        if (summary.isBlank())
-            return 0
-
-        return summary
-            .split("\\s+".toRegex())
-            .size
     }
 
     private fun saveHistory() {
@@ -626,29 +440,11 @@ $textToSummarize
         }
     }
 
-    private fun saveSummary() {
-
-        summaryFile.writeText(summary)
-    }
-
-    private fun loadSummary() {
-
-        if (summaryFile.exists()) {
-
-            summary =
-                summaryFile.readText()
-        }
-    }
-
     fun clearHistory() {
 
         messages.clear()
 
-        summary = ""
-
         saveHistory()
-
-        saveSummary()
     }
 
     fun getHistorySize(): Int {

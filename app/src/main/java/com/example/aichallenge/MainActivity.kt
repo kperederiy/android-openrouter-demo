@@ -296,9 +296,6 @@ ${stats.strategy}
 Токены истории:
 ${stats.historyTokens}
 
-Summary токены:
-${stats.summaryTokens}
-
 Стоимость запроса:
 ${"%.8f".format(stats.estimatedCost)} $
 
