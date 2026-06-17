@@ -3,13 +3,8 @@ package com.example.aichallenge
 import android.content.Context
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import okhttp3.Call
-import okhttp3.Callback
+import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody
-import okhttp3.Response
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -32,65 +27,40 @@ class SimpleAgent(
         private const val OUTPUT_PRICE_PER_TOKEN =
             0.60 / 1_000_000
 
-        private const val MAX_RECENT_MESSAGES = 10
+        private const val MAX_SHORT_MEMORY = 10
     }
-
-    private val client = OkHttpClient()
 
     private val gson = Gson()
 
-    private val historyType =
-        object : TypeToken<MutableList<ChatMessage>>() {}.type
+    private val client = OkHttpClient()
 
-    private val historyFile =
-        File(context.filesDir, "history.json")
+    private val memory = MemoryLayers()
 
-    private val branchesFile =
+    private val shortMemoryFile =
         File(
             context.filesDir,
-            "branches.json"
+            "short_memory.json"
         )
 
-
-    private val factsFile =
+    private val workingMemoryFile =
         File(
             context.filesDir,
-            "facts.json"
+            "working_memory.json"
         )
 
-    private var currentStrategy =
-        MemoryStrategy.SLIDING_WINDOW
-
-    private val messages =
-        mutableListOf<ChatMessage>()
-
-    private val facts =
-        mutableMapOf<String, String>()
-
-    private val branches =
-        mutableMapOf<String, DialogBranch>()
-
-    private var currentBranchId = "main"
+    private val longTermMemoryFile =
+        File(
+            context.filesDir,
+            "long_term_memory.json"
+        )
 
     init {
 
-        loadHistory()
+        loadShortTermMemory()
 
-        loadFacts()
+        loadWorkingMemory()
 
-        loadBranches()
-
-        if (!branches.containsKey("main")) {
-
-            branches["main"] =
-                DialogBranch(
-                    id = "main",
-                    messages =
-                        messages.toMutableList()
-                )
-
-            saveBranches()
-        }
+        loadLongTermMemory()
     }
 
     fun processRequest(
@@ -102,16 +72,20 @@ class SimpleAgent(
         onError: (String) -> Unit
     ) {
 
-        messages.add(
+        memory.shortTermMemory.add(
             ChatMessage(
                 role = "user",
                 content = userRequest
             )
         )
 
-        updateFacts(userRequest)
+        updateWorkingMemory(userRequest)
 
-        saveHistory()
+        updateLongTermMemory(userRequest)
+
+        trimShortTermMemory()
+
+        saveShortTermMemory()
 
         val json = JSONObject()
 
@@ -122,90 +96,34 @@ class SimpleAgent(
 
         val messagesArray = JSONArray()
 
-        when(currentStrategy) {
+        messagesArray.put(
+            JSONObject().apply {
 
-            MemoryStrategy.SLIDING_WINDOW -> {
+                put("role", "system")
 
-                messages
-                    .takeLast(MAX_RECENT_MESSAGES)
-                    .forEach {
-                        messagesArray.put(
-                            JSONObject().apply {
-
-                                put("role", it.role)
-                                put("content", it.content)
-                            }
-                        )
-                    }
+                put(
+                    "content",
+                    buildMemoryPrompt()
+                )
             }
+        )
 
-            MemoryStrategy.STICKY_FACTS -> {
+        memory.shortTermMemory.forEach {
 
-                if(facts.isNotEmpty()) {
+            messagesArray.put(
+                JSONObject().apply {
 
-                    messagesArray.put(
-                        JSONObject().apply {
+                    put(
+                        "role",
+                        it.role
+                    )
 
-                            put(
-                                "role",
-                                "system"
-                            )
-
-                            put(
-                                "content",
-                                buildFactsPrompt()
-                            )
-                        }
+                    put(
+                        "content",
+                        it.content
                     )
                 }
-
-                messages
-                    .takeLast(MAX_RECENT_MESSAGES)
-                    .forEach {
-                        messagesArray.put(
-                            JSONObject().apply {
-
-                                put("role", it.role)
-                                put("content", it.content)
-                            }
-                        )
-                    }
-            }
-
-            MemoryStrategy.BRANCHING -> {
-
-                messages.forEach {
-                    messagesArray.put(
-                        JSONObject().apply {
-
-                            put("role", it.role)
-                            put("content", it.content)
-                        }
-                    )
-                }
-            }
-        }
-
-        when(currentStrategy) {
-
-            MemoryStrategy.SLIDING_WINDOW ->
-                applySlidingWindow()
-
-            MemoryStrategy.STICKY_FACTS -> {
-
-                applySlidingWindow()
-            }
-
-            MemoryStrategy.BRANCHING -> {
-
-                branches[currentBranchId]
-                    ?.messages
-                    ?.apply {
-
-                        clear()
-                        addAll(messages)
-                    }
-            }
+            )
         }
 
         json.put(
@@ -213,288 +131,314 @@ class SimpleAgent(
             messagesArray
         )
 
-        val body = RequestBody.create(
-            "application/json".toMediaType(),
-            json.toString()
-        )
+        val body =
+            RequestBody.create(
+                "application/json".toMediaType(),
+                json.toString()
+            )
 
-        val request = Request.Builder()
-            .url("https://openrouter.ai/api/v1/chat/completions")
-            .addHeader(
-                "Authorization",
-                "Bearer $apiKey"
-            )
-            .addHeader(
-                "Content-Type",
-                "application/json"
-            )
-            .post(body)
-            .build()
+        val request =
+            Request.Builder()
+                .url(
+                    "https://openrouter.ai/api/v1/chat/completions"
+                )
+                .addHeader(
+                    "Authorization",
+                    "Bearer $apiKey"
+                )
+                .addHeader(
+                    "Content-Type",
+                    "application/json"
+                )
+                .post(body)
+                .build()
 
         client.newCall(request)
-            .enqueue(object : Callback {
+            .enqueue(
+                object : Callback {
 
-                override fun onFailure(
-                    call: Call,
-                    e: IOException
-                ) {
-
-                    onError(
-                        "Ошибка сети: ${e.message}"
-                    )
-                }
-
-                override fun onResponse(
-                    call: Call,
-                    response: Response
-                ) {
-
-                    val responseBody =
-                        response.body?.string() ?: ""
-
-                    if (!response.isSuccessful) {
+                    override fun onFailure(
+                        call: Call,
+                        e: IOException
+                    ) {
 
                         onError(
-                            "HTTP ${response.code}\n$responseBody"
+                            "Ошибка сети: ${e.message}"
                         )
-
-                        return
                     }
 
-                    try {
+                    override fun onResponse(
+                        call: Call,
+                        response: Response
+                    ) {
 
-                        val jsonObject =
-                            JSONObject(responseBody)
+                        val responseBody =
+                            response.body?.string()
+                                ?: ""
 
-                        val answer =
-                            jsonObject
-                                .getJSONArray("choices")
-                                .getJSONObject(0)
-                                .getJSONObject("message")
-                                .getString("content")
+                        if (!response.isSuccessful) {
 
-                        val usage =
-                            jsonObject.optJSONObject("usage")
-
-                        val promptTokens =
-                            usage?.optInt(
-                                "prompt_tokens",
-                                0
-                            ) ?: 0
-
-                        val completionTokens =
-                            usage?.optInt(
-                                "completion_tokens",
-                                0
-                            ) ?: 0
-
-                        val totalTokens =
-                            usage?.optInt(
-                                "total_tokens",
-                                0
-                            ) ?: 0
-
-                        messages.add(
-                            ChatMessage(
-                                role = "assistant",
-                                content = answer
+                            onError(
+                                "HTTP ${response.code}\n$responseBody"
                             )
-                        )
 
-                        if (
-                            currentStrategy ==
-                            MemoryStrategy.SLIDING_WINDOW
-                        ) {
-                            applySlidingWindow()
+                            return
                         }
 
-                        if (
-                            currentStrategy ==
-                            MemoryStrategy.BRANCHING
-                        ) {
+                        try {
 
-                            branches[currentBranchId] =
-                                DialogBranch(
-                                    id = currentBranchId,
-                                    messages =
-                                        messages.toMutableList()
+                            val jsonObject =
+                                JSONObject(responseBody)
+
+                            val answer =
+                                jsonObject
+                                    .getJSONArray("choices")
+                                    .getJSONObject(0)
+                                    .getJSONObject("message")
+                                    .getString("content")
+
+                            memory.shortTermMemory.add(
+                                ChatMessage(
+                                    role = "assistant",
+                                    content = answer
+                                )
+                            )
+
+                            trimShortTermMemory()
+
+                            saveShortTermMemory()
+
+                            val usage =
+                                jsonObject.optJSONObject("usage")
+
+                            val promptTokens =
+                                usage?.optInt(
+                                    "prompt_tokens",
+                                    0
+                                ) ?: 0
+
+                            val completionTokens =
+                                usage?.optInt(
+                                    "completion_tokens",
+                                    0
+                                ) ?: 0
+
+                            val totalTokens =
+                                usage?.optInt(
+                                    "total_tokens",
+                                    0
+                                ) ?: 0
+
+                            val historyTokens =
+                                estimateHistoryTokens()
+
+                            val cost =
+                                promptTokens *
+                                        INPUT_PRICE_PER_TOKEN +
+                                        completionTokens *
+                                        OUTPUT_PRICE_PER_TOKEN
+
+                            val usagePercent =
+                                (
+                                        historyTokens.toDouble()
+                                                / CONTEXT_WINDOW * 100
+                                        ).toInt()
+
+                            val stats =
+                                AgentStats(
+                                    promptTokens,
+                                    completionTokens,
+                                    totalTokens,
+                                    historyTokens,
+                                    cost,
+                                    usagePercent,
+                                    if (usagePercent > 80)
+                                        "Память заполнена"
+                                    else
+                                        "Память в норме",
+                                    "MEMORY_LAYERS"
                                 )
 
-                            saveBranches()
-                        }
-
-                        saveHistory()
-
-                        val historyTokens =
-                            estimateHistoryTokens()
-
-                        val cost =
-                            promptTokens *
-                                    INPUT_PRICE_PER_TOKEN +
-                                    completionTokens *
-                                    OUTPUT_PRICE_PER_TOKEN
-
-                        val usagePercent =
-                            ((historyTokens.toDouble()
-                                    / CONTEXT_WINDOW) * 100)
-                                .toInt()
-
-                        val warning =
-                            when {
-                                usagePercent >= 95 ->
-                                    "❌ Контекст почти переполнен"
-
-                                usagePercent >= 80 ->
-                                    "⚠ История занимает $usagePercent% контекста"
-
-                                else ->
-                                    "Контекст в норме"
-                            }
-
-                        val stats =
-                            AgentStats(
-                                promptTokens =
-                                    promptTokens,
-
-                                completionTokens =
-                                    completionTokens,
-
-                                totalTokens =
-                                    totalTokens,
-
-                                historyTokens =
-                                    historyTokens,
-
-                                estimatedCost =
-                                    cost,
-
-                                contextUsagePercent =
-                                    usagePercent,
-
-                                contextWarning =
-                                    warning,
-
-                                strategy =
-                                    currentStrategy.name
+                            onSuccess(
+                                answer,
+                                stats
                             )
 
-                        onSuccess(
-                            answer,
-                            stats
-                        )
+                        } catch (e: Exception) {
 
-                    } catch (e: Exception) {
-
-                        onError(
-                            "Ошибка обработки ответа: ${e.message}"
-                        )
+                            onError(
+                                "Ошибка обработки ответа: ${e.message}"
+                            )
+                        }
                     }
                 }
-            })
+            )
+    }
+
+    private fun buildMemoryPrompt(): String {
+
+        return buildString {
+
+            append(
+                "LONG TERM MEMORY\n"
+            )
+
+            longTermEntries().forEach {
+
+                append(
+                    "${it.key}: ${it.value}\n"
+                )
+            }
+
+            append("\n")
+
+            append(
+                "WORKING MEMORY\n"
+            )
+
+            workingEntries().forEach {
+
+                append(
+                    "${it.key}: ${it.value}\n"
+                )
+            }
+        }
+    }
+
+    private fun updateWorkingMemory(
+        text: String
+    ) {
+
+        val lower =
+            text.lowercase()
+
+        if (lower.contains("бюджет")) {
+
+            memory.workingMemory["budget"] =
+                text
+        }
+
+        if (lower.contains("срок")) {
+
+            memory.workingMemory["deadline"] =
+                text
+        }
+
+        if (lower.contains("используем")) {
+
+            memory.workingMemory["technology"] =
+                text
+        }
+
+        if (lower.contains("цель")) {
+
+            memory.workingMemory["goal"] =
+                text
+        }
+
+        saveWorkingMemory()
+    }
+
+    private fun updateLongTermMemory(
+        text: String
+    ) {
+
+        val lower =
+            text.lowercase()
+
+        if (lower.contains("меня зовут")) {
+
+            memory.longTermMemory["name"] =
+                text
+        }
+
+        if (lower.contains("предпочитаю")) {
+
+            memory.longTermMemory["preference"] =
+                text
+        }
+
+        if (lower.contains("решили")) {
+
+            memory.longTermMemory["decision"] =
+                text
+        }
+
+        saveLongTermMemory()
+    }
+
+    private fun trimShortTermMemory() {
+
+        if (
+            memory.shortTermMemory.size <=
+            MAX_SHORT_MEMORY
+        ) return
+
+        val recent =
+            memory.shortTermMemory.takeLast(
+                MAX_SHORT_MEMORY
+            )
+
+        memory.shortTermMemory.clear()
+
+        memory.shortTermMemory.addAll(
+            recent
+        )
     }
 
     private fun estimateHistoryTokens(): Int {
 
-        return messages.sumOf {
+        return memory.shortTermMemory.sumOf {
 
-            val words =
-                it.content
-                    .trim()
-                    .split("\\s+".toRegex())
-                    .size
-
-            (words * 1.3).toInt()
+            (it.content.length / 4)
         }
     }
 
-    private fun saveHistory() {
+    private fun saveShortTermMemory() {
 
-        try {
-
-            historyFile.writeText(
-                gson.toJson(messages)
+        shortMemoryFile.writeText(
+            gson.toJson(
+                memory.shortTermMemory
             )
-
-        } catch (e: Exception) {
-
-            e.printStackTrace()
-        }
-    }
-
-    private fun loadHistory() {
-
-        try {
-
-            if (!historyFile.exists())
-                return
-
-            val loadedMessages:
-                    MutableList<ChatMessage> =
-                gson.fromJson(
-                    historyFile.readText(),
-                    historyType
-                )
-
-            messages.clear()
-
-            messages.addAll(
-                loadedMessages
-            )
-
-        } catch (e: Exception) {
-
-            e.printStackTrace()
-        }
-    }
-    fun setStrategy(
-        strategy: MemoryStrategy
-    ) {
-        currentStrategy = strategy
-    }
-
-    fun createCheckpoint(
-        branchName: String
-    ) {
-
-        branches[branchName] =
-            DialogBranch(
-                id = branchName,
-                messages =
-                    messages.toMutableList()
-            )
-
-        saveBranches()
-    }
-
-    fun switchBranch(
-        branchName: String
-    ) {
-
-        branches[currentBranchId] =
-            DialogBranch(
-                id = currentBranchId,
-                messages =
-                    messages.toMutableList()
-            )
-
-        val branch =
-            branches[branchName]
-                ?: return
-
-        messages.clear()
-
-        messages.addAll(
-            branch.messages
         )
-
-        currentBranchId =
-            branchName
-
-        saveHistory()
     }
-    private fun loadFacts() {
 
-        if (!factsFile.exists())
+    private fun loadShortTermMemory() {
+
+        if (!shortMemoryFile.exists())
+            return
+
+        val type =
+            object :
+                TypeToken<
+                        MutableList<ChatMessage>
+                        >() {}.type
+
+        val loaded =
+            gson.fromJson<
+                    MutableList<ChatMessage>
+                    >(
+                shortMemoryFile.readText(),
+                type
+            )
+
+        memory.shortTermMemory.addAll(
+            loaded
+        )
+    }
+
+    private fun saveWorkingMemory() {
+
+        workingMemoryFile.writeText(
+            gson.toJson(
+                memory.workingMemory
+            )
+        )
+    }
+
+    private fun loadWorkingMemory() {
+
+        if (!workingMemoryFile.exists())
             return
 
         val type =
@@ -507,227 +451,77 @@ class SimpleAgent(
             gson.fromJson<
                     MutableMap<String, String>
                     >(
-                factsFile.readText(),
+                workingMemoryFile.readText(),
                 type
             )
 
-        facts.putAll(loaded)
-    }
-
-    private fun saveFacts() {
-
-        factsFile.writeText(
-            gson.toJson(facts)
+        memory.workingMemory.putAll(
+            loaded
         )
     }
 
-    private fun updateFacts(
-        userText: String
-    ) {
+    private fun saveLongTermMemory() {
 
-        val text =
-            userText.lowercase()
-
-        if (
-            text.contains("меня зовут")
-        ) {
-
-            facts["name"] =
-                userText
-        }
-
-        if (
-            text.contains("моя цель")
-        ) {
-
-            facts["goal"] =
-                userText
-        }
-
-        if (
-            text.contains("бюджет")
-        ) {
-
-            facts["budget"] =
-                userText
-        }
-
-
-
-        if (
-            text.contains("срок")
-        ) {
-
-            facts["deadline"] =
-                userText
-        }
-
-
-
-        if (
-            text.contains("используем")
-        ) {
-
-            facts["technology"] =
-                userText
-        }
-
-
-
-        if (
-            text.contains("ограничение")
-        ) {
-
-            facts["restriction"] =
-                userText
-        }
-
-
-
-        if (
-            text.contains("решили")
-        ) {
-
-            facts["decision"] =
-                userText
-        }
-
-        saveFacts()
-    }
-
-    private fun buildFactsPrompt(): String {
-
-        return buildString {
-
-            append(
-                "Известные факты:\n"
+        longTermMemoryFile.writeText(
+            gson.toJson(
+                memory.longTermMemory
             )
-
-            facts.forEach {
-
-                append(
-                    "${it.key}: ${it.value}\n"
-                )
-            }
-        }
-    }
-
-    private fun applySlidingWindow() {
-
-        if (
-            messages.size <= MAX_RECENT_MESSAGES
-        ) return
-
-        val recent =
-            messages.takeLast(MAX_RECENT_MESSAGES)
-
-        messages.clear()
-
-        messages.addAll(recent)
-    }
-
-    fun loadDemoConversation() {
-
-        val demoMessages = listOf(
-
-            "Нужно собрать ТЗ на приложение доставки еды.",
-            "Проект делаем под Android.",
-            "Используем Kotlin и Jetpack Compose.",
-            "Бюджет ограничен 5000 долларов.",
-            "Важно выпустить MVP за 2 месяца.",
-            "Нужна регистрация по номеру телефона.",
-            "Оплата через Stripe.",
-            "Нужна история заказов.",
-            "Админ-панель пока не нужна.",
-            "Главная цель — проверить спрос.",
-            "Интерфейс должен быть простым.",
-            "Целевая аудитория — студенты.",
-            "Основной рынок — Амстердам.",
-            "Запомни все требования.",
-            "Сформируй краткое ТЗ."
         )
-
-        messages.clear()
-
-        demoMessages.forEach {
-
-            messages.add(
-                ChatMessage(
-                    role = "user",
-                    content = it
-                )
-            )
-        }
-
-        saveHistory()
     }
 
-    private fun loadBranches() {
+    private fun loadLongTermMemory() {
 
-        try {
+        if (!longTermMemoryFile.exists())
+            return
 
-            if (!branchesFile.exists())
-                return
+        val type =
+            object :
+                TypeToken<
+                        MutableMap<String, String>
+                        >() {}.type
 
-            val type =
-                object :
-                    TypeToken<
-                            MutableMap<String, DialogBranch>
-                            >() {}.type
-
-            val loaded:
-                    MutableMap<String, DialogBranch> =
-                gson.fromJson(
-                    branchesFile.readText(),
-                    type
-                )
-
-            branches.clear()
-
-            branches.putAll(loaded)
-
-        } catch (e: Exception) {
-
-            e.printStackTrace()
-        }
-    }
-
-    private fun saveBranches() {
-
-        try {
-
-            branchesFile.writeText(
-                gson.toJson(branches)
+        val loaded =
+            gson.fromJson<
+                    MutableMap<String, String>
+                    >(
+                longTermMemoryFile.readText(),
+                type
             )
 
-        } catch (e: Exception) {
-
-            e.printStackTrace()
-        }
+        memory.longTermMemory.putAll(
+            loaded
+        )
     }
 
-    fun getBranches(): List<String> {
+    private fun longTermEntries() =
+        memory.longTermMemory
 
-        return branches.keys.toList()
+    private fun workingEntries() =
+        memory.workingMemory
+
+    fun clearMemory() {
+
+        memory.shortTermMemory.clear()
+        memory.workingMemory.clear()
+        memory.longTermMemory.clear()
+
+        saveShortTermMemory()
+        saveWorkingMemory()
+        saveLongTermMemory()
     }
 
-    fun getCurrentBranch(): String {
+    fun getShortTermMemory(): List<ChatMessage> {
 
-        return currentBranchId
+        return memory.shortTermMemory.toList()
     }
 
-    fun createBranchFromCurrent(
-        branchName: String
-    ) {
+    fun getWorkingMemory(): Map<String, String> {
 
-        branches[branchName] =
-            DialogBranch(
-                id = branchName,
-                messages =
-                    messages.toMutableList()
-            )
-
-        saveBranches()
+        return memory.workingMemory.toMap()
     }
 
+    fun getLongTermMemory(): Map<String, String> {
+
+        return memory.longTermMemory.toMap()
+    }
 }

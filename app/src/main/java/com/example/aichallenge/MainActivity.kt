@@ -4,14 +4,14 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import java.util.Properties
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 
 class MainActivity : ComponentActivity() {
 
@@ -25,8 +25,6 @@ class MainActivity : ComponentActivity() {
             apiKey = apiKey
         )
 
-
-
         setContent {
 
             var userInput by remember {
@@ -38,29 +36,6 @@ class MainActivity : ComponentActivity() {
             }
 
             var isLoading by remember {
-                mutableStateOf(false)
-            }
-
-            var selectedStrategy by remember {
-
-                mutableStateOf(
-                    MemoryStrategy.SLIDING_WINDOW
-                )
-            }
-
-            var branches by remember {
-                mutableStateOf(
-                    agent.getBranches()
-                )
-            }
-
-            var currentBranch by remember {
-                mutableStateOf(
-                    agent.getCurrentBranch()
-                )
-            }
-
-            var showBranchMenu by remember {
                 mutableStateOf(false)
             }
 
@@ -77,11 +52,13 @@ class MainActivity : ComponentActivity() {
                     ) {
 
                         Text(
-                            text = "AI Agent",
+                            text = "AI Advent Challenge",
                             style = MaterialTheme.typography.headlineMedium
                         )
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(
+                            modifier = Modifier.height(16.dp)
+                        )
 
                         OutlinedTextField(
                             value = userInput,
@@ -94,167 +71,26 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.fillMaxWidth()
                         )
 
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Text(
-                            text = "Стратегия памяти"
+                        Spacer(
+                            modifier = Modifier.height(16.dp)
                         )
+
+                        Button(
+                            onClick = {
+
+                                agent.clearMemory()
+
+                                responseText =
+                                    "Все слои памяти очищены."
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Очистить память")
+                        }
 
                         Spacer(
                             modifier = Modifier.height(8.dp)
                         )
-
-                        SingleChoiceSegmentedButtonRow {
-
-                            MemoryStrategy.entries.forEachIndexed { index, strategy ->
-
-                                SegmentedButton(
-                                    selected = selectedStrategy == strategy,
-                                    onClick = {
-                                        selectedStrategy = strategy
-                                        agent.setStrategy(strategy)
-                                    },
-                                    shape = SegmentedButtonDefaults.itemShape(
-                                        index = index,
-                                        count = MemoryStrategy.entries.size
-                                    )
-                                ) {
-                                    Text(strategy.title)
-                                }
-                            }
-                        }
-
-                        Button(
-                            onClick = {
-
-                                agent.loadDemoConversation()
-
-                                responseText =
-                                    "Тестовый диалог загружен.\n" +
-                                            "Теперь задайте вопрос:\n" +
-                                            "\"Какой бюджет проекта?\""
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Загрузить тестовый диалог")
-                        }
-
-                        Button(
-                            onClick = {
-
-                                val branchName =
-                                    "branch-" +
-                                            System.currentTimeMillis()
-
-                                agent.createCheckpoint(
-                                    branchName
-                                )
-
-                                branches =
-                                    agent.getBranches()
-
-                                responseText =
-                                    "Создан checkpoint:\n$branchName"
-                            }
-                        ) {
-                            Text("Checkpoint")
-                        }
-
-                        Button(
-                            onClick = {
-
-                                val branchName =
-                                    "child-" +
-                                            System.currentTimeMillis()
-
-                                agent.createBranchFromCurrent(
-                                    branchName
-                                )
-
-                                branches =
-                                    agent.getBranches()
-
-                                responseText =
-                                    "Создана новая ветка:\n$branchName"
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Создать ветку")
-                        }
-
-                        Spacer(
-                            modifier = Modifier.height(12.dp)
-                        )
-
-                        Text(
-                            text = "Текущая ветка: $currentBranch",
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-
-                        Spacer(
-                            modifier = Modifier.height(8.dp)
-                        )
-
-                        Button(
-                            onClick = {
-                                showBranchMenu = true
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Переключить ветку")
-                        }
-
-                        if (showBranchMenu) {
-
-                            AlertDialog(
-                                onDismissRequest = {
-                                    showBranchMenu = false
-                                },
-
-                                title = {
-                                    Text("Выберите ветку")
-                                },
-
-                                text = {
-
-                                    Column {
-
-                                        branches.forEach { branch ->
-
-                                            Button(
-                                                onClick = {
-
-                                                    agent.switchBranch(
-                                                        branch
-                                                    )
-
-                                                    currentBranch =
-                                                        branch
-
-                                                    showBranchMenu =
-                                                        false
-
-                                                    responseText =
-                                                        "Переключено на ветку:\n$branch"
-                                                },
-                                                modifier =
-                                                    Modifier.fillMaxWidth()
-                                            ) {
-
-                                                Text(branch)
-                                            }
-
-                                            Spacer(
-                                                modifier =
-                                                    Modifier.height(4.dp)
-                                            )
-                                        }
-                                    }
-                                },
-
-                                confirmButton = {}
-                            )
-                        }
 
                         Button(
                             onClick = {
@@ -279,7 +115,7 @@ class MainActivity : ComponentActivity() {
 
 $answer
 
-──────────────────
+────────────────────
 
 Токены запроса:
 ${stats.promptTokens}
@@ -290,20 +126,20 @@ ${stats.completionTokens}
 Всего токенов:
 ${stats.totalTokens}
 
-Стратегия:
-${stats.strategy}
-
-Токены истории:
+Токены памяти:
 ${stats.historyTokens}
 
-Стоимость запроса:
+Стоимость:
 ${"%.8f".format(stats.estimatedCost)} $
 
-Заполнение контекста:
+Использование контекста:
 ${stats.contextUsagePercent}%
 
 ${stats.contextWarning}
-            """.trimIndent()
+
+Модель памяти:
+${stats.strategy}
+                                                """.trimIndent()
 
                                             isLoading = false
                                         }
@@ -324,13 +160,17 @@ ${stats.contextWarning}
                             Text("Отправить")
                         }
 
-                        Spacer(modifier = Modifier.height(20.dp))
+                        Spacer(
+                            modifier = Modifier.height(16.dp)
+                        )
 
                         if (isLoading) {
                             CircularProgressIndicator()
                         }
 
-                        Spacer(modifier = Modifier.height(20.dp))
+                        Spacer(
+                            modifier = Modifier.height(16.dp)
+                        )
 
                         Card(
                             modifier = Modifier
