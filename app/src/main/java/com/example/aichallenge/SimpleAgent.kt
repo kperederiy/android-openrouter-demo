@@ -2,7 +2,6 @@ package com.example.aichallenge
 
 import android.content.Context
 import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import org.json.JSONArray
@@ -36,6 +35,10 @@ class SimpleAgent(
 
     private val memory = MemoryLayers()
 
+    private val userProfile = UserProfile()
+
+    private var profileEnabled = true
+
     private val shortMemoryFile =
         File(context.filesDir, "short_memory.md")
 
@@ -44,6 +47,9 @@ class SimpleAgent(
 
     private val longTermMemoryFile =
         File(context.filesDir, "long_term_memory.md")
+
+    private val profileFile =
+        File(context.filesDir, "user_profile.md")
 
     init {
 
@@ -73,6 +79,8 @@ class SimpleAgent(
         updateWorkingMemory(userRequest)
 
         updateLongTermMemory(userRequest)
+
+        updateUserProfile(userRequest)
 
         trimShortTermMemory()
 
@@ -247,7 +255,8 @@ class SimpleAgent(
                                         "Память заполнена"
                                     else
                                         "Память в норме",
-                                    "MEMORY_LAYERS"
+                                    "MEMORY_LAYERS",
+                                    profileEnabled
                                 )
 
                             onSuccess(
@@ -270,11 +279,34 @@ class SimpleAgent(
 
         return buildString {
 
+            if (profileEnabled) {
+
+                append(
+                    "USER PROFILE\n"
+                )
+
+                append(
+                    "Name: ${userProfile.name}\n"
+                )
+
+                append(
+                    "Style: ${userProfile.responseStyle}\n"
+                )
+
+                append(
+                    "Format: ${userProfile.responseFormat}\n"
+                )
+
+                append(
+                    "Restrictions: ${userProfile.restrictions}\n\n"
+                )
+            }
+
             append(
                 "LONG TERM MEMORY\n"
             )
 
-            longTermEntries().forEach {
+            memory.longTermMemory.forEach {
 
                 append(
                     "${it.key}: ${it.value}\n"
@@ -287,7 +319,7 @@ class SimpleAgent(
                 "WORKING MEMORY\n"
             )
 
-            workingEntries().forEach {
+            memory.workingMemory.forEach {
 
                 append(
                     "${it.key}: ${it.value}\n"
@@ -587,6 +619,152 @@ class SimpleAgent(
         saveShortTermMemory()
         saveWorkingMemory()
         saveLongTermMemory()
+    }
+
+    private fun saveUserProfile() {
+
+        val markdown =
+            buildString {
+
+                append("# User Profile\n\n")
+
+                append(
+                    "- name: ${userProfile.name}\n"
+                )
+
+                append(
+                    "- response_style: ${userProfile.responseStyle}\n"
+                )
+
+                append(
+                    "- response_format: ${userProfile.responseFormat}\n"
+                )
+
+                append(
+                    "- restrictions: ${userProfile.restrictions}\n"
+                )
+            }
+
+        profileFile.writeText(
+            markdown
+        )
+    }
+
+    private fun loadUserProfile() {
+
+        if (!profileFile.exists())
+            return
+
+        profileFile.readLines()
+            .forEach { line ->
+
+                if (
+                    !line.startsWith("- ")
+                )
+                    return@forEach
+
+                val content =
+                    line.removePrefix("- ")
+
+                val separator =
+                    content.indexOf(":")
+
+                if (separator == -1)
+                    return@forEach
+
+                val key =
+                    content.substring(
+                        0,
+                        separator
+                    ).trim()
+
+                val value =
+                    content.substring(
+                        separator + 1
+                    ).trim()
+
+                when(key) {
+
+                    "name" ->
+                        userProfile.name = value
+
+                    "response_style" ->
+                        userProfile.responseStyle =
+                            value
+
+                    "response_format" ->
+                        userProfile.responseFormat =
+                            value
+
+                    "restrictions" ->
+                        userProfile.restrictions =
+                            value
+                }
+            }
+    }
+
+    private fun updateUserProfile(
+        text: String
+    ) {
+
+        val lower =
+            text.lowercase()
+
+        if (
+            lower.contains("меня зовут")
+        ) {
+
+            userProfile.name = text
+        }
+
+        if (
+            lower.contains("отвечай кратко")
+        ) {
+
+            userProfile.responseStyle =
+                "concise"
+        }
+
+        if (
+            lower.contains("отвечай подробно")
+        ) {
+
+            userProfile.responseStyle =
+                "detailed"
+        }
+
+        if (
+            lower.contains("используй списки")
+        ) {
+
+            userProfile.responseFormat =
+                "list"
+        }
+
+        if (
+            lower.contains("без кода")
+        ) {
+
+            userProfile.restrictions =
+                "no_code"
+        }
+
+        saveUserProfile()
+    }
+
+    fun enableUserProfile() {
+
+        profileEnabled = true
+    }
+
+    fun disableUserProfile() {
+
+        profileEnabled = false
+    }
+
+    fun isUserProfileEnabled(): Boolean {
+
+        return profileEnabled
     }
 
     fun getShortTermMemory(): List<ChatMessage> {

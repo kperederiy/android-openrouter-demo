@@ -39,6 +39,11 @@ class MainActivity : ComponentActivity() {
                 mutableStateOf(false)
             }
 
+            var profileEnabled by remember {
+
+                mutableStateOf(true)
+            }
+
             MaterialTheme {
 
                 Surface(
@@ -91,6 +96,32 @@ class MainActivity : ComponentActivity() {
                         Spacer(
                             modifier = Modifier.height(8.dp)
                         )
+
+                        Row {
+
+                            Checkbox(
+
+                                checked = profileEnabled,
+
+                                onCheckedChange = {
+
+                                    profileEnabled = it
+
+                                    if (it) {
+
+                                        agent.enableUserProfile()
+
+                                    } else {
+
+                                        agent.disableUserProfile()
+                                    }
+                                }
+                            )
+
+                            Text(
+                                "Использовать профиль пользователя"
+                            )
+                        }
 
                         Button(
                             onClick = {
@@ -163,6 +194,7 @@ ${stats.strategy}
                         Spacer(
                             modifier = Modifier.height(16.dp)
                         )
+
 
                         if (isLoading) {
                             CircularProgressIndicator()

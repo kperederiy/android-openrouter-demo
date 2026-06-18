@@ -8,5 +8,6 @@ data class AgentStats(
     val estimatedCost: Double,
     val contextUsagePercent: Int,
     val contextWarning: String,
-    val strategy: String
+    val strategy: String,
+    val profileEnabled: Boolean
 )
