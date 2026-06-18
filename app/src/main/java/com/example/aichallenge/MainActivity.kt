@@ -77,23 +77,6 @@ class MainActivity : ComponentActivity() {
                         )
 
                         Spacer(
-                            modifier = Modifier.height(16.dp)
-                        )
-
-                        Button(
-                            onClick = {
-
-                                agent.clearMemory()
-
-                                responseText =
-                                    "Все слои памяти очищены."
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Очистить память")
-                        }
-
-                        Spacer(
                             modifier = Modifier.height(8.dp)
                         )
 
@@ -226,6 +209,23 @@ ${stats.strategy}
                                     )
                                 }
                             }
+                        }
+
+                        Spacer(
+                            modifier = Modifier.height(16.dp)
+                        )
+
+                        Button(
+                            onClick = {
+
+                                agent.clearMemory()
+
+                                responseText =
+                                    "Все слои памяти очищены."
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Очистить память")
                         }
                     }
                 }
