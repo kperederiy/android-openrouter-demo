@@ -37,22 +37,13 @@ class SimpleAgent(
     private val memory = MemoryLayers()
 
     private val shortMemoryFile =
-        File(
-            context.filesDir,
-            "short_memory.json"
-        )
+        File(context.filesDir, "short_memory.md")
 
     private val workingMemoryFile =
-        File(
-            context.filesDir,
-            "working_memory.json"
-        )
+        File(context.filesDir, "working_memory.md")
 
     private val longTermMemoryFile =
-        File(
-            context.filesDir,
-            "long_term_memory.json"
-        )
+        File(context.filesDir, "long_term_memory.md")
 
     init {
 
@@ -396,10 +387,21 @@ class SimpleAgent(
 
     private fun saveShortTermMemory() {
 
+        val markdown =
+            buildString {
+
+                append("# Short Term Memory\n\n")
+
+                memory.shortTermMemory.forEach {
+
+                    append(
+                        "${it.role.uppercase()}: ${it.content}\n\n"
+                    )
+                }
+            }
+
         shortMemoryFile.writeText(
-            gson.toJson(
-                memory.shortTermMemory
-            )
+            markdown
         )
     }
 
@@ -408,31 +410,63 @@ class SimpleAgent(
         if (!shortMemoryFile.exists())
             return
 
-        val type =
-            object :
-                TypeToken<
-                        MutableList<ChatMessage>
-                        >() {}.type
+        val lines =
+            shortMemoryFile.readLines()
 
-        val loaded =
-            gson.fromJson<
-                    MutableList<ChatMessage>
-                    >(
-                shortMemoryFile.readText(),
-                type
-            )
+        memory.shortTermMemory.clear()
 
-        memory.shortTermMemory.addAll(
-            loaded
-        )
+        lines.forEach { line ->
+
+            when {
+
+                line.startsWith("USER:") -> {
+
+                    memory.shortTermMemory.add(
+                        ChatMessage(
+                            role = "user",
+                            content =
+                                line.removePrefix(
+                                    "USER:"
+                                ).trim()
+                        )
+                    )
+                }
+
+                line.startsWith(
+                    "ASSISTANT:"
+                ) -> {
+
+                    memory.shortTermMemory.add(
+                        ChatMessage(
+                            role = "assistant",
+                            content =
+                                line.removePrefix(
+                                    "ASSISTANT:"
+                                ).trim()
+                        )
+                    )
+                }
+            }
+        }
     }
 
     private fun saveWorkingMemory() {
 
+        val markdown =
+            buildString {
+
+                append("# Working Memory\n\n")
+
+                memory.workingMemory.forEach {
+
+                    append(
+                        "- ${it.key}: ${it.value}\n"
+                    )
+                }
+            }
+
         workingMemoryFile.writeText(
-            gson.toJson(
-                memory.workingMemory
-            )
+            markdown
         )
     }
 
@@ -441,31 +475,60 @@ class SimpleAgent(
         if (!workingMemoryFile.exists())
             return
 
-        val type =
-            object :
-                TypeToken<
-                        MutableMap<String, String>
-                        >() {}.type
+        memory.workingMemory.clear()
 
-        val loaded =
-            gson.fromJson<
-                    MutableMap<String, String>
-                    >(
-                workingMemoryFile.readText(),
-                type
-            )
+        workingMemoryFile
+            .readLines()
+            .forEach { line ->
 
-        memory.workingMemory.putAll(
-            loaded
-        )
+                if (
+                    !line.startsWith("- ")
+                ) return@forEach
+
+                val content =
+                    line.removePrefix("- ")
+
+                val separator =
+                    content.indexOf(":")
+
+                if (separator == -1)
+                    return@forEach
+
+                val key =
+                    content.substring(
+                        0,
+                        separator
+                    ).trim()
+
+                val value =
+                    content.substring(
+                        separator + 1
+                    ).trim()
+
+                memory.workingMemory[key] =
+                    value
+            }
     }
 
     private fun saveLongTermMemory() {
 
+        val markdown =
+            buildString {
+
+                append(
+                    "# Long Term Memory\n\n"
+                )
+
+                memory.longTermMemory.forEach {
+
+                    append(
+                        "- ${it.key}: ${it.value}\n"
+                    )
+                }
+            }
+
         longTermMemoryFile.writeText(
-            gson.toJson(
-                memory.longTermMemory
-            )
+            markdown
         )
     }
 
@@ -474,23 +537,39 @@ class SimpleAgent(
         if (!longTermMemoryFile.exists())
             return
 
-        val type =
-            object :
-                TypeToken<
-                        MutableMap<String, String>
-                        >() {}.type
+        memory.longTermMemory.clear()
 
-        val loaded =
-            gson.fromJson<
-                    MutableMap<String, String>
-                    >(
-                longTermMemoryFile.readText(),
-                type
-            )
+        longTermMemoryFile
+            .readLines()
+            .forEach { line ->
 
-        memory.longTermMemory.putAll(
-            loaded
-        )
+                if (
+                    !line.startsWith("- ")
+                ) return@forEach
+
+                val content =
+                    line.removePrefix("- ")
+
+                val separator =
+                    content.indexOf(":")
+
+                if (separator == -1)
+                    return@forEach
+
+                val key =
+                    content.substring(
+                        0,
+                        separator
+                    ).trim()
+
+                val value =
+                    content.substring(
+                        separator + 1
+                    ).trim()
+
+                memory.longTermMemory[key] =
+                    value
+            }
     }
 
     private fun longTermEntries() =
