@@ -1,7 +1,6 @@
 package com.example.aichallenge
 
 import android.content.Context
-import com.google.gson.Gson
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import org.json.JSONArray
@@ -29,13 +28,15 @@ class SimpleAgent(
         private const val MAX_SHORT_MEMORY = 10
     }
 
-    private val gson = Gson()
-
     private val client = OkHttpClient()
 
     private val memory = MemoryLayers()
 
     private val userProfile = UserProfile()
+
+    private val taskContext = TaskContext()
+
+    private val stateMachine = TaskStateMachine()
 
     private var profileEnabled = true
 
@@ -51,6 +52,9 @@ class SimpleAgent(
     private val profileFile =
         File(context.filesDir, "user_profile.md")
 
+    private val taskContextFile =
+        File(context.filesDir, "task_context.md")
+
     init {
 
         loadShortTermMemory()
@@ -58,10 +62,15 @@ class SimpleAgent(
         loadWorkingMemory()
 
         loadLongTermMemory()
+
+        loadUserProfile()
+
+        loadTaskContext()
     }
 
     fun processRequest(
         userRequest: String,
+        updateTask: Boolean = true,
         onSuccess: (
             answer: String,
             stats: AgentStats
@@ -75,6 +84,10 @@ class SimpleAgent(
                 content = userRequest
             )
         )
+
+        if (updateTask) {
+            updateCurrentTask(userRequest)
+        }
 
         updateWorkingMemory(userRequest)
 
@@ -196,6 +209,11 @@ class SimpleAgent(
                                     .getJSONObject("message")
                                     .getString("content")
 
+                            taskContext.lastResult =
+                                answer
+
+                            saveTaskContext()
+
                             memory.shortTermMemory.add(
                                 ChatMessage(
                                     role = "assistant",
@@ -277,53 +295,130 @@ class SimpleAgent(
 
     private fun buildMemoryPrompt(): String {
 
+        val stateInstruction = when(taskContext.currentState) {
+
+            TaskState.PLANNING -> """
+
+CURRENT PHASE: PLANNING
+
+Goal:
+Collect requirements and create an implementation plan.
+
+Last completed step:
+${taskContext.lastResult}
+
+Expected action:
+- analyze requirements
+- ask clarifying questions if needed
+- create detailed implementation plan
+- DO NOT write production code yet
+- wait until transition to EXECUTION
+
+"""
+
+            TaskState.EXECUTION -> """
+
+CURRENT PHASE: EXECUTION
+
+Goal:
+Implement the approved plan.
+
+Last completed step:
+${taskContext.lastResult}
+
+Expected action:
+- write code
+- create files and artifacts
+- follow the approved plan
+- do NOT return to planning
+- do NOT ask for requirements again unless critical information is missing
+
+"""
+
+            TaskState.VALIDATION -> """
+
+CURRENT PHASE: VALIDATION
+
+Goal:
+Validate implementation quality.
+
+Last completed step:
+${taskContext.lastResult}
+
+Expected action:
+- review generated code
+- identify defects
+- verify compliance with plan
+- create test scenarios
+- suggest fixes if problems found
+
+"""
+
+            TaskState.DONE -> """
+
+CURRENT PHASE: DONE
+
+Goal:
+Task is completed.
+
+Last completed step:
+${taskContext.lastResult}
+
+Expected action:
+- summarize result
+- list completed work
+- describe final outcome
+- do not generate new implementation steps
+
+"""
+        }
+
         return buildString {
 
             if (profileEnabled) {
 
                 append(
-                    "USER PROFILE\n"
-                )
+                    """
+USER PROFILE
 
-                append(
-                    "Name: ${userProfile.name}\n"
-                )
+Name: ${userProfile.name}
+Style: ${userProfile.responseStyle}
+Format: ${userProfile.responseFormat}
+Restrictions: ${userProfile.restrictions}
 
-                append(
-                    "Style: ${userProfile.responseStyle}\n"
-                )
-
-                append(
-                    "Format: ${userProfile.responseFormat}\n"
-                )
-
-                append(
-                    "Restrictions: ${userProfile.restrictions}\n\n"
+"""
                 )
             }
 
             append(
-                "LONG TERM MEMORY\n"
+                """
+TASK CONTEXT
+
+Current State:
+${taskContext.currentState}
+
+Current Task:
+${taskContext.currentTask}
+
+$stateInstruction
+
+"""
             )
+
+            append("LONG TERM MEMORY\n")
 
             memory.longTermMemory.forEach {
 
-                append(
-                    "${it.key}: ${it.value}\n"
-                )
+                append("${it.key}: ${it.value}\n")
             }
 
             append("\n")
 
-            append(
-                "WORKING MEMORY\n"
-            )
+            append("WORKING MEMORY\n")
 
             memory.workingMemory.forEach {
 
-                append(
-                    "${it.key}: ${it.value}\n"
-                )
+                append("${it.key}: ${it.value}\n")
             }
         }
     }
@@ -613,12 +708,39 @@ class SimpleAgent(
     fun clearMemory() {
 
         memory.shortTermMemory.clear()
+
         memory.workingMemory.clear()
+
         memory.longTermMemory.clear()
 
+        taskContext.currentTask = ""
+
+        taskContext.lastResult = ""
+
+        taskContext.paused = false
+
+        taskContext.currentState =
+            TaskState.PLANNING
+
         saveShortTermMemory()
+
         saveWorkingMemory()
+
         saveLongTermMemory()
+
+        saveTaskContext()
+
+        userProfile.name = ""
+
+        userProfile.responseStyle =
+            "neutral"
+
+        userProfile.responseFormat =
+            "detailed"
+
+        userProfile.restrictions = ""
+
+        saveUserProfile()
     }
 
     private fun saveUserProfile() {
@@ -767,6 +889,185 @@ class SimpleAgent(
         return profileEnabled
     }
 
+    private fun saveTaskContext() {
+
+        val markdown =
+            buildString {
+
+                append("# Task Context\n\n")
+
+                append(
+                    "- state: ${taskContext.currentState}\n"
+                )
+
+                append(
+                    "- task: ${taskContext.currentTask}\n"
+                )
+
+                append(
+                    "- result: ${taskContext.lastResult}\n"
+                )
+
+                append(
+                    "- paused: ${taskContext.paused}\n"
+                )
+            }
+
+        taskContextFile.writeText(
+            markdown
+        )
+    }
+
+    private fun loadTaskContext() {
+
+        if (!taskContextFile.exists())
+            return
+
+        taskContextFile
+            .readLines()
+            .forEach { line ->
+
+                if (!line.startsWith("- "))
+                    return@forEach
+
+                val content =
+                    line.removePrefix("- ")
+
+                val separator =
+                    content.indexOf(":")
+
+                if (separator == -1)
+                    return@forEach
+
+                val key =
+                    content.substring(
+                        0,
+                        separator
+                    ).trim()
+
+                val value =
+                    content.substring(
+                        separator + 1
+                    ).trim()
+
+                when(key) {
+
+                    "state" -> {
+
+                        taskContext.currentState =
+                            TaskState.valueOf(value)
+                    }
+
+                    "task" -> {
+
+                        taskContext.currentTask =
+                            value
+                    }
+
+                    "result" -> {
+
+                        taskContext.lastResult =
+                            value
+                    }
+
+                    "paused" -> {
+
+                        taskContext.paused =
+                            value.toBoolean()
+                    }
+                }
+            }
+    }
+
+    fun getCurrentState(): TaskState {
+
+        return taskContext.currentState
+    }
+
+    fun isPaused(): Boolean {
+
+        return taskContext.paused
+    }
+
+    fun moveForward() {
+
+        if (
+            !stateMachine.canMoveForward(
+                taskContext.currentState
+            )
+        ) {
+            return
+        }
+
+        taskContext.currentState =
+            stateMachine.next(
+                taskContext.currentState
+            )
+
+        saveTaskContext()
+    }
+
+    fun moveBackward() {
+
+        if (
+            !stateMachine.canMoveBack(
+                taskContext.currentState
+            )
+        ) {
+            return
+        }
+
+        taskContext.currentState =
+            stateMachine.previous(
+                taskContext.currentState
+            )
+
+        saveTaskContext()
+    }
+
+    fun pauseTask() {
+
+        taskContext.paused = true
+
+        saveTaskContext()
+    }
+
+    fun resumeTask() {
+
+        taskContext.paused = false
+
+        saveTaskContext()
+    }
+
+    private fun updateCurrentTask(
+        request: String
+    ) {
+
+        taskContext.currentTask =
+            request
+
+        saveTaskContext()
+    }
+
+    fun canMoveForward(): Boolean {
+
+        return stateMachine.canMoveForward(
+            taskContext.currentState
+        )
+    }
+
+    fun canMoveBack(): Boolean {
+
+        return stateMachine.canMoveBack(
+            taskContext.currentState
+        )
+    }
+
+    fun getTaskContext(): TaskContext {
+
+        return taskContext.copy()
+    }
+
     fun getShortTermMemory(): List<ChatMessage> {
 
         return memory.shortTermMemory.toList()
@@ -780,5 +1081,10 @@ class SimpleAgent(
     fun getLongTermMemory(): Map<String, String> {
 
         return memory.longTermMemory.toMap()
+    }
+
+    fun getDebugPrompt(): String {
+
+        return buildMemoryPrompt()
     }
 }

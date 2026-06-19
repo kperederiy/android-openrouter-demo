@@ -44,6 +44,22 @@ class MainActivity : ComponentActivity() {
                 mutableStateOf(true)
             }
 
+            var currentState by remember {
+                mutableStateOf(
+                    agent.getCurrentState()
+                )
+            }
+
+            var isPaused by remember {
+                mutableStateOf(
+                    agent.isPaused()
+                )
+            }
+
+            var promptText by remember {
+                mutableStateOf("Промпт еще не отправлялся")
+            }
+
             MaterialTheme {
 
                 Surface(
@@ -55,16 +71,6 @@ class MainActivity : ComponentActivity() {
                             .fillMaxSize()
                             .padding(16.dp)
                     ) {
-
-                        Text(
-                            text = "AI Advent Challenge",
-                            style = MaterialTheme.typography.headlineMedium
-                        )
-
-                        Spacer(
-                            modifier = Modifier.height(16.dp)
-                        )
-
                         OutlinedTextField(
                             value = userInput,
                             onValueChange = {
@@ -74,10 +80,6 @@ class MainActivity : ComponentActivity() {
                                 Text("Введите запрос")
                             },
                             modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Spacer(
-                            modifier = Modifier.height(8.dp)
                         )
 
                         Row {
@@ -107,6 +109,9 @@ class MainActivity : ComponentActivity() {
                         }
 
                         Button(
+                            enabled =
+                                !isLoading &&
+                                        !isPaused,
                             onClick = {
 
                                 if (userInput.isBlank()) {
@@ -116,6 +121,7 @@ class MainActivity : ComponentActivity() {
                                 isLoading = true
                                 responseText = "Получаем ответ..."
 
+                                promptText = userInput
                                 agent.processRequest(
                                     userInput,
 
@@ -125,34 +131,17 @@ class MainActivity : ComponentActivity() {
 
                                             responseText =
                                                 """
+Состояние FSM: $currentState
 Ответ:
-
 $answer
-
 ────────────────────
-
-Токены запроса:
-${stats.promptTokens}
-
-Токены ответа:
-${stats.completionTokens}
-
-Всего токенов:
-${stats.totalTokens}
-
-Токены памяти:
-${stats.historyTokens}
-
-Стоимость:
-${"%.8f".format(stats.estimatedCost)} $
-
-Использование контекста:
-${stats.contextUsagePercent}%
-
-${stats.contextWarning}
-
-Модель памяти:
-${stats.strategy}
+Токены запроса: ${stats.promptTokens}
+Токены ответа: ${stats.completionTokens}
+Всего токенов: ${stats.totalTokens}
+Токены памяти: ${stats.historyTokens}
+Стоимость: ${"%.8f".format(stats.estimatedCost)} $
+Использование контекста: ${stats.contextUsagePercent}% ${stats.contextWarning}
+Модель памяти: ${stats.strategy}
                                                 """.trimIndent()
 
                                             isLoading = false
@@ -175,17 +164,250 @@ ${stats.strategy}
                         }
 
                         Spacer(
-                            modifier = Modifier.height(16.dp)
+                            modifier = Modifier.height(8.dp)
                         )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+
+                            Button(
+
+                                enabled =
+                                    when(currentState) {
+                                        TaskState.PLANNING -> false
+                                        else -> true
+                                    },
+
+                                modifier =
+                                    Modifier.weight(1f),
+
+                                onClick = {
+
+                                    agent.moveBackward()
+
+                                    currentState =
+                                        agent.getCurrentState()
+
+                                    isLoading = true
+
+                                    responseText =
+                                        "Переход в состояние $currentState..."
+
+                                    promptText = userInput
+                                    agent.processRequest(
+
+                                        "Продолжай работу согласно текущему состоянию задачи",
+
+                                        updateTask = false,
+
+                                        onSuccess = { answer, stats ->
+
+                                            runOnUiThread {
+
+                                                responseText =
+                                                    """
+Состояние FSM: $currentState
+
+Ответ:
+$answer
+                    """.trimIndent()
+
+                                                isLoading = false
+                                            }
+                                        },
+
+                                        onError = { error ->
+
+                                            runOnUiThread {
+
+                                                responseText = error
+
+                                                isLoading = false
+                                            }
+                                        }
+                                    )
+                                }
+
+                            ) {
+
+                                Text("Назад")
+                            }
+
+                            Button(
+
+                                modifier =
+                                    Modifier.weight(1f),
+
+                                onClick = {
+
+                                    if (isPaused) {
+
+                                        agent.resumeTask()
+
+                                        isPaused = false
+
+                                        isLoading = true
+
+                                        responseText =
+                                            "Восстанавливаем контекст..."
+
+                                        promptText = userInput
+                                        agent.processRequest(
+
+                                            "Продолжи выполнение текущей задачи",
+                                            updateTask = false,
+
+                                            onSuccess = { answer, stats ->
+
+                                                runOnUiThread {
+
+                                                    responseText =
+                                                        """
+Ответ:
+$answer
+────────────────────
+Токены запроса: ${stats.promptTokens}
+Токены ответа: ${stats.completionTokens}
+Всего токенов: ${stats.totalTokens}
+Токены памяти: ${stats.historyTokens}
+Стоимость: ${"%.8f".format(stats.estimatedCost)} $
+Использование контекста: ${stats.contextUsagePercent}% ${stats.contextWarning}
+Модель памяти: ${stats.strategy}
+                    """.trimIndent()
+
+                                                    isLoading = false
+                                                }
+                                            },
+
+                                            onError = { error ->
+
+                                                runOnUiThread {
+
+                                                    responseText = error
+
+                                                    isLoading = false
+                                                }
+                                            }
+                                        )
+
+                                    } else {
+
+                                        agent.pauseTask()
+
+                                        isPaused = true
+                                    }
+                                }
+
+                            ) {
+
+                                Text(
+
+                                    if (isPaused)
+                                        "Продолжить"
+                                    else
+                                        "Пауза"
+                                )
+                            }
+
+                            Button(
+
+                                enabled =
+                                    currentState != TaskState.DONE,
+
+                                modifier =
+                                    Modifier.weight(1f),
+
+                                onClick = {
+
+                                    agent.moveForward()
+
+                                    currentState =
+                                        agent.getCurrentState()
+
+                                    isLoading = true
+
+                                    responseText =
+                                        "Переход в состояние $currentState..."
+
+                                    promptText = userInput
+                                    agent.processRequest(
+
+                                        "Продолжай работу согласно текущему состоянию задачи",
+
+                                        onSuccess = { answer, stats ->
+
+                                            runOnUiThread {
+
+                                                responseText =
+                                                    """
+Состояние FSM: $currentState
+
+Ответ:
+$answer
+                    """.trimIndent()
+
+                                                isLoading = false
+                                            }
+                                        },
+
+                                        onError = { error ->
+
+                                            runOnUiThread {
+
+                                                responseText = error
+
+                                                isLoading = false
+                                            }
+                                        }
+                                    )
+                                }
+
+                            ) {
+
+                                Text("Вперед")
+                            }
+                        }
 
 
                         if (isLoading) {
                             CircularProgressIndicator()
                         }
 
-                        Spacer(
-                            modifier = Modifier.height(16.dp)
-                        )
+                        /*promptText =
+                            """
+===== SYSTEM =====
+
+${agent.getDebugPrompt()}
+
+===== USER =====
+
+$userInput
+    """.trimIndent()
+
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(180.dp)
+                        ) {
+
+                            SelectionContainer {
+
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .verticalScroll(
+                                            rememberScrollState()
+                                        )
+                                        .padding(12.dp)
+                                ) {
+
+                                    Text(
+                                        text = promptText
+                                    )
+                                }
+                            }
+                        }*/
 
                         Card(
                             modifier = Modifier
@@ -211,17 +433,18 @@ ${stats.strategy}
                             }
                         }
 
-                        Spacer(
-                            modifier = Modifier.height(16.dp)
-                        )
-
                         Button(
                             onClick = {
-
                                 agent.clearMemory()
 
+                                currentState =
+                                    agent.getCurrentState()
+
+                                isPaused =
+                                    agent.isPaused()
+
                                 responseText =
-                                    "Все слои памяти очищены."
+                                    "Память очищена. Состояние сброшено в PLANNING."
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
