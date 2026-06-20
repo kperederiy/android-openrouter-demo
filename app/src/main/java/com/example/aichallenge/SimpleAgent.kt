@@ -40,6 +40,11 @@ class SimpleAgent(
 
     private var profileEnabled = true
 
+    private val projectInvariants = ProjectInvariants()
+
+    private val invariantsFile =
+        File(context.filesDir, "project_invariants.md")
+
     private val shortMemoryFile =
         File(context.filesDir, "short_memory.md")
 
@@ -66,6 +71,8 @@ class SimpleAgent(
         loadUserProfile()
 
         loadTaskContext()
+
+        loadProjectInvariants()
     }
 
     fun processRequest(
@@ -323,6 +330,9 @@ CURRENT PHASE: EXECUTION
 Goal:
 Implement the approved plan.
 
+Mandatory invariants:
+${projectInvariants.content}
+
 Last completed step:
 ${taskContext.lastResult}
 
@@ -341,6 +351,9 @@ CURRENT PHASE: VALIDATION
 
 Goal:
 Validate implementation quality.
+
+Mandatory invariants:
+${projectInvariants.content}
 
 Last completed step:
 ${taskContext.lastResult}
@@ -401,6 +414,47 @@ Current Task:
 ${taskContext.currentTask}
 
 $stateInstruction
+
+"""
+            )
+
+            append(
+                """
+
+PROJECT INVARIANTS
+
+${projectInvariants.content}
+
+CRITICAL RULES
+
+1. These invariants are mandatory.
+2. Never propose solutions violating them.
+3. If a request conflicts with invariants,
+   explain the conflict.
+4. Always verify compliance before answering.
+
+"""
+            )
+
+            append(
+                """
+
+INVARIANT VALIDATION CHECKLIST
+
+Before generating any answer:
+
+- verify architecture compliance
+- verify technology compliance
+- verify business rules compliance
+- verify restrictions compliance
+
+If any violation exists:
+
+STOP
+
+Explain the violation.
+
+Do not generate a conflicting solution.
 
 """
             )
@@ -1049,18 +1103,39 @@ $stateInstruction
         saveTaskContext()
     }
 
-    fun canMoveForward(): Boolean {
+    fun saveProjectInvariants(
+        text: String
+    ) {
 
-        return stateMachine.canMoveForward(
-            taskContext.currentState
+        projectInvariants.content = text
+
+        invariantsFile.writeText(
+            buildString {
+
+                append("# Project Invariants\n\n")
+
+                append(text)
+            }
         )
     }
 
-    fun canMoveBack(): Boolean {
+    private fun loadProjectInvariants() {
 
-        return stateMachine.canMoveBack(
-            taskContext.currentState
-        )
+        if (!invariantsFile.exists())
+            return
+
+        projectInvariants.content =
+            invariantsFile.readText()
+                .replace(
+                    "# Project Invariants",
+                    ""
+                )
+                .trim()
+    }
+
+    fun getProjectInvariants(): String {
+
+        return projectInvariants.content
     }
 
     fun getTaskContext(): TaskContext {

@@ -56,9 +56,16 @@ class MainActivity : ComponentActivity() {
                 )
             }
 
-            var promptText by remember {
-                mutableStateOf("Промпт еще не отправлялся")
+            var invariants by remember {
+
+                mutableStateOf(
+                    agent.getProjectInvariants()
+                )
             }
+
+            /*var promptText by remember {
+                mutableStateOf("Промпт еще не отправлялся")
+            }*/
 
             MaterialTheme {
 
@@ -80,6 +87,26 @@ class MainActivity : ComponentActivity() {
                                 Text("Введите запрос")
                             },
                             modifier = Modifier.fillMaxWidth()
+                        )
+
+                        OutlinedTextField(
+
+                            value = invariants,
+
+                            onValueChange = {
+
+                                invariants = it
+
+                                agent.saveProjectInvariants(it)
+                            },
+
+                            label = {
+
+                                Text("Укажите инварианты")
+                            },
+
+                            modifier =
+                                Modifier.fillMaxWidth()
                         )
 
                         Row {
@@ -121,7 +148,7 @@ class MainActivity : ComponentActivity() {
                                 isLoading = true
                                 responseText = "Получаем ответ..."
 
-                                promptText = userInput
+                                //promptText = userInput
                                 agent.processRequest(
                                     userInput,
 
@@ -194,7 +221,7 @@ $answer
                                     responseText =
                                         "Переход в состояние $currentState..."
 
-                                    promptText = userInput
+                                    //promptText = userInput
                                     agent.processRequest(
 
                                         "Продолжай работу согласно текущему состоянию задачи",
@@ -252,7 +279,7 @@ $answer
                                         responseText =
                                             "Восстанавливаем контекст..."
 
-                                        promptText = userInput
+                                        //promptText = userInput
                                         agent.processRequest(
 
                                             "Продолжи выполнение текущей задачи",
@@ -330,7 +357,7 @@ $answer
                                     responseText =
                                         "Переход в состояние $currentState..."
 
-                                    promptText = userInput
+                                    //promptText = userInput
                                     agent.processRequest(
 
                                         "Продолжай работу согласно текущему состоянию задачи",
