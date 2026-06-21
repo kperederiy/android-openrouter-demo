@@ -63,9 +63,9 @@ class MainActivity : ComponentActivity() {
                 )
             }
 
-            /*var promptText by remember {
+            var promptText by remember {
                 mutableStateOf("Промпт еще не отправлялся")
-            }*/
+            }
 
             MaterialTheme {
 
@@ -401,7 +401,7 @@ $answer
                             CircularProgressIndicator()
                         }
 
-                        /*promptText =
+                        promptText =
                             """
 ===== SYSTEM =====
 
@@ -434,7 +434,7 @@ $userInput
                                     )
                                 }
                             }
-                        }*/
+                        }
 
                         Card(
                             modifier = Modifier
