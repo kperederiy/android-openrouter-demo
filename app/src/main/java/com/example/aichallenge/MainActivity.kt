@@ -18,11 +18,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val apiKey = getApiKey()
-
         val agent = SimpleAgent(
-            context = applicationContext,
-            apiKey = apiKey
+            apiKey = getApiKey()
         )
 
         setContent {
@@ -32,39 +29,11 @@ class MainActivity : ComponentActivity() {
             }
 
             var responseText by remember {
-                mutableStateOf("Введите запрос")
+                mutableStateOf("")
             }
 
             var isLoading by remember {
                 mutableStateOf(false)
-            }
-
-            var profileEnabled by remember {
-
-                mutableStateOf(true)
-            }
-
-            var currentState by remember {
-                mutableStateOf(
-                    agent.getCurrentState()
-                )
-            }
-
-            var isPaused by remember {
-                mutableStateOf(
-                    agent.isPaused()
-                )
-            }
-
-            var invariants by remember {
-
-                mutableStateOf(
-                    agent.getProjectInvariants()
-                )
-            }
-
-            var promptText by remember {
-                mutableStateOf("Промпт еще не отправлялся")
             }
 
             MaterialTheme {
@@ -78,6 +47,7 @@ class MainActivity : ComponentActivity() {
                             .fillMaxSize()
                             .padding(16.dp)
                     ) {
+
                         OutlinedTextField(
                             value = userInput,
                             onValueChange = {
@@ -89,56 +59,12 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.fillMaxWidth()
                         )
 
-                        OutlinedTextField(
-
-                            value = invariants,
-
-                            onValueChange = {
-
-                                invariants = it
-
-                                agent.saveProjectInvariants(it)
-                            },
-
-                            label = {
-
-                                Text("Укажите инварианты")
-                            },
-
-                            modifier =
-                                Modifier.fillMaxWidth()
+                        Spacer(
+                            modifier = Modifier.height(8.dp)
                         )
 
-                        Row {
-
-                            Checkbox(
-
-                                checked = profileEnabled,
-
-                                onCheckedChange = {
-
-                                    profileEnabled = it
-
-                                    if (it) {
-
-                                        agent.enableUserProfile()
-
-                                    } else {
-
-                                        agent.disableUserProfile()
-                                    }
-                                }
-                            )
-
-                            Text(
-                                "Использовать профиль пользователя"
-                            )
-                        }
-
                         Button(
-                            enabled =
-                                !isLoading &&
-                                        !isPaused,
+                            enabled = !isLoading,
                             onClick = {
 
                                 if (userInput.isBlank()) {
@@ -146,31 +72,15 @@ class MainActivity : ComponentActivity() {
                                 }
 
                                 isLoading = true
-                                responseText = "Получаем ответ..."
 
-                                //promptText = userInput
                                 agent.processRequest(
                                     userInput,
 
-                                    onSuccess = { answer, stats ->
+                                    onSuccess = { answer ->
 
                                         runOnUiThread {
 
-                                            responseText =
-                                                """
-Состояние FSM: $currentState
-Ответ:
-$answer
-────────────────────
-Токены запроса: ${stats.promptTokens}
-Токены ответа: ${stats.completionTokens}
-Всего токенов: ${stats.totalTokens}
-Токены памяти: ${stats.historyTokens}
-Стоимость: ${"%.8f".format(stats.estimatedCost)} $
-Использование контекста: ${stats.contextUsagePercent}% ${stats.contextWarning}
-Модель памяти: ${stats.strategy}
-                                                """.trimIndent()
-
+                                            responseText = answer
                                             isLoading = false
                                         }
                                     },
@@ -194,247 +104,14 @@ $answer
                             modifier = Modifier.height(8.dp)
                         )
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-
-                            Button(
-
-                                enabled =
-                                    when(currentState) {
-                                        TaskState.PLANNING -> false
-                                        else -> true
-                                    },
-
-                                modifier =
-                                    Modifier.weight(1f),
-
-                                onClick = {
-
-                                    agent.moveBackward()
-
-                                    currentState =
-                                        agent.getCurrentState()
-
-                                    isLoading = true
-
-                                    responseText =
-                                        "Переход в состояние $currentState..."
-
-                                    //promptText = userInput
-                                    agent.processRequest(
-
-                                        "Продолжай работу согласно текущему состоянию задачи",
-
-                                        updateTask = false,
-
-                                        onSuccess = { answer, stats ->
-
-                                            runOnUiThread {
-
-                                                responseText =
-                                                    """
-Состояние FSM: $currentState
-
-Ответ:
-$answer
-                    """.trimIndent()
-
-                                                isLoading = false
-                                            }
-                                        },
-
-                                        onError = { error ->
-
-                                            runOnUiThread {
-
-                                                responseText = error
-
-                                                isLoading = false
-                                            }
-                                        }
-                                    )
-                                }
-
-                            ) {
-
-                                Text("Назад")
-                            }
-
-                            Button(
-
-                                modifier =
-                                    Modifier.weight(1f),
-
-                                onClick = {
-
-                                    if (isPaused) {
-
-                                        agent.resumeTask()
-
-                                        isPaused = false
-
-                                        isLoading = true
-
-                                        responseText =
-                                            "Восстанавливаем контекст..."
-
-                                        //promptText = userInput
-                                        agent.processRequest(
-
-                                            "Продолжи выполнение текущей задачи",
-                                            updateTask = false,
-
-                                            onSuccess = { answer, stats ->
-
-                                                runOnUiThread {
-
-                                                    responseText =
-                                                        """
-Ответ:
-$answer
-────────────────────
-Токены запроса: ${stats.promptTokens}
-Токены ответа: ${stats.completionTokens}
-Всего токенов: ${stats.totalTokens}
-Токены памяти: ${stats.historyTokens}
-Стоимость: ${"%.8f".format(stats.estimatedCost)} $
-Использование контекста: ${stats.contextUsagePercent}% ${stats.contextWarning}
-Модель памяти: ${stats.strategy}
-                    """.trimIndent()
-
-                                                    isLoading = false
-                                                }
-                                            },
-
-                                            onError = { error ->
-
-                                                runOnUiThread {
-
-                                                    responseText = error
-
-                                                    isLoading = false
-                                                }
-                                            }
-                                        )
-
-                                    } else {
-
-                                        agent.pauseTask()
-
-                                        isPaused = true
-                                    }
-                                }
-
-                            ) {
-
-                                Text(
-
-                                    if (isPaused)
-                                        "Продолжить"
-                                    else
-                                        "Пауза"
-                                )
-                            }
-
-                            Button(
-
-                                enabled =
-                                    currentState != TaskState.DONE,
-
-                                modifier =
-                                    Modifier.weight(1f),
-
-                                onClick = {
-
-                                    agent.moveForward()
-
-                                    currentState =
-                                        agent.getCurrentState()
-
-                                    isLoading = true
-
-                                    responseText =
-                                        "Переход в состояние $currentState..."
-
-                                    //promptText = userInput
-                                    agent.processRequest(
-
-                                        "Продолжай работу согласно текущему состоянию задачи",
-
-                                        onSuccess = { answer, stats ->
-
-                                            runOnUiThread {
-
-                                                responseText =
-                                                    """
-Состояние FSM: $currentState
-
-Ответ:
-$answer
-                    """.trimIndent()
-
-                                                isLoading = false
-                                            }
-                                        },
-
-                                        onError = { error ->
-
-                                            runOnUiThread {
-
-                                                responseText = error
-
-                                                isLoading = false
-                                            }
-                                        }
-                                    )
-                                }
-
-                            ) {
-
-                                Text("Вперед")
-                            }
-                        }
-
-
                         if (isLoading) {
+
                             CircularProgressIndicator()
                         }
 
-                        promptText =
-                            """
-===== SYSTEM =====
-
-${agent.getDebugPrompt()}
-
-===== USER =====
-
-$userInput
-    """.trimIndent()
-
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(180.dp)
-                        ) {
-
-                            SelectionContainer {
-
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .verticalScroll(
-                                            rememberScrollState()
-                                        )
-                                        .padding(12.dp)
-                                ) {
-
-                                    Text(
-                                        text = promptText
-                                    )
-                                }
-                            }
-                        }
+                        Spacer(
+                            modifier = Modifier.height(8.dp)
+                        )
 
                         Card(
                             modifier = Modifier
@@ -458,24 +135,6 @@ $userInput
                                     )
                                 }
                             }
-                        }
-
-                        Button(
-                            onClick = {
-                                agent.clearMemory()
-
-                                currentState =
-                                    agent.getCurrentState()
-
-                                isPaused =
-                                    agent.isPaused()
-
-                                responseText =
-                                    "Память очищена. Состояние сброшено в PLANNING."
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Очистить память")
                         }
                     }
                 }
