@@ -36,6 +36,10 @@ class MainActivity : ComponentActivity() {
                 mutableStateOf(false)
             }
 
+            var toolsText by remember {
+                mutableStateOf("")
+            }
+
             MaterialTheme {
 
                 Surface(
@@ -70,6 +74,8 @@ class MainActivity : ComponentActivity() {
                                 if (userInput.isBlank()) {
                                     return@Button
                                 }
+
+                                toolsText = ""   // очищаем список инструментов
 
                                 isLoading = true
 
@@ -109,6 +115,45 @@ class MainActivity : ComponentActivity() {
                             CircularProgressIndicator()
                         }
 
+                        Button(
+                            onClick = {
+
+                                isLoading = true
+
+                                agent.loadTools(
+
+                                    onSuccess = { tools ->
+
+                                        runOnUiThread {
+
+                                            toolsText =
+                                                tools.joinToString(
+                                                    separator = "\n\n"
+                                                ) {
+
+                                                    "• ${it.name}\n${it.description}"
+                                                }
+
+                                            isLoading = false
+                                        }
+                                    },
+
+                                    onError = { error ->
+
+                                        runOnUiThread {
+
+                                            toolsText = error
+                                            isLoading = false
+                                        }
+                                    }
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+
+                            Text("Получить инструменты")
+                        }
+
                         Spacer(
                             modifier = Modifier.height(8.dp)
                         )
@@ -131,7 +176,7 @@ class MainActivity : ComponentActivity() {
                                 ) {
 
                                     Text(
-                                        text = responseText
+                                        text = toolsText.ifBlank { responseText }
                                     )
                                 }
                             }

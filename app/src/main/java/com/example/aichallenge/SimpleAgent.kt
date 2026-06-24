@@ -1,5 +1,7 @@
 package com.example.aichallenge
 
+import com.example.aichallenge.mcp.MCPTool
+import com.example.aichallenge.mcp.MockMCPClient
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import org.json.JSONArray
@@ -17,6 +19,19 @@ class SimpleAgent(
     }
 
     private val client = OkHttpClient()
+
+    private val mcpClient = MockMCPClient()
+
+    fun loadTools(
+        onSuccess: (List<MCPTool>) -> Unit,
+        onError: (String) -> Unit
+    ) {
+
+        mcpClient.getTools(
+            onSuccess,
+            onError
+        )
+    }
 
     fun processRequest(
         userRequest: String,
