@@ -1,9 +1,13 @@
 package com.example.aichallenge.mcp
 
-class WeatherMCPClient {
+import android.content.Context
+
+class WeatherMCPClient (
+    context: Context
+) {
 
     private val server =
-        WeatherMCPServer()
+        WeatherMCPServer(context)
 
     suspend fun callTool(
         name: String,

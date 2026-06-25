@@ -26,7 +26,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         val agent = SimpleAgent(
-            apiKey = getApiKey()
+            apiKey = getApiKey(),
+            context = this
         )
 
         val constraints =

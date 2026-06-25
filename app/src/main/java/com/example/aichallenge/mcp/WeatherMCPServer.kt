@@ -4,18 +4,12 @@ import android.content.Context
 import com.example.aichallenge.weather.WeatherAggregator
 import com.example.aichallenge.weather.WeatherService
 
-class WeatherMCPServer {
+class WeatherMCPServer (
+    private val context: Context
+) {
 
     private val weatherService =
         WeatherService()
-
-    private lateinit var context: Context
-
-    fun initialize(
-        context: Context
-    ) {
-        this.context = context
-    }
 
     suspend fun handleRequest(
         method: String,

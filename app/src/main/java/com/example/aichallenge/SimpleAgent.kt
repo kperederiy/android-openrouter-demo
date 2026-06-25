@@ -1,5 +1,6 @@
 package com.example.aichallenge
 
+import android.content.Context
 import com.example.aichallenge.mcp.WeatherMCPClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -11,7 +12,8 @@ import org.json.JSONObject
 import java.io.IOException
 
 class SimpleAgent(
-    private val apiKey: String
+    private val apiKey: String,
+    context: Context
 ) {
 
     companion object {
@@ -22,7 +24,7 @@ class SimpleAgent(
     private val client = OkHttpClient()
 
     private val weatherClient =
-        WeatherMCPClient()
+        WeatherMCPClient(context)
 
     /**
      * Явный вызов MCP инструмента из UI
