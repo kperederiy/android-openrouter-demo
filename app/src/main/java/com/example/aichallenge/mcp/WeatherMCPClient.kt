@@ -21,4 +21,15 @@ class WeatherMCPClient {
 
         return result["content"] ?: ""
     }
+
+    suspend fun getAggregatedWeather(): String {
+
+        return callTool(
+            "weather_aggregated",
+            mapOf(
+                "range" to "24h",
+                "format" to "text"
+            )
+        )
+    }
 }

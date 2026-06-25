@@ -80,11 +80,67 @@ class SimpleAgent(
             return
         }
 
+        if (
+            userRequest.contains(
+                "погода за день",
+                true
+            )
+        ) {
+
+            processAggregatedWeather(
+                onSuccess,
+                onError
+            )
+
+            return
+        }
+
+        if (
+            userRequest.contains(
+                "статистика погоды",
+                true
+            )
+        ) {
+
+            processAggregatedWeather(
+                onSuccess,
+                onError
+            )
+
+            return
+        }
+
         callLLM(
             prompt = userRequest,
             onSuccess = onSuccess,
             onError = onError
         )
+    }
+
+    fun processAggregatedWeather(
+        onSuccess: (String) -> Unit,
+        onError: (String) -> Unit
+    ) {
+
+        CoroutineScope(
+            Dispatchers.IO
+        ).launch {
+
+            try {
+
+                val result =
+                    weatherClient
+                        .getAggregatedWeather()
+
+                onSuccess(result)
+
+            } catch (e: Exception) {
+
+                onError(
+                    e.message ?: "Error"
+                )
+            }
+        }
     }
 
     /**

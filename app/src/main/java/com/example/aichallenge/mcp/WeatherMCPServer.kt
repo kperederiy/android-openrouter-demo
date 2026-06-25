@@ -1,11 +1,21 @@
 package com.example.aichallenge.mcp
 
+import android.content.Context
+import com.example.aichallenge.weather.WeatherAggregator
 import com.example.aichallenge.weather.WeatherService
 
 class WeatherMCPServer {
 
     private val weatherService =
         WeatherService()
+
+    private lateinit var context: Context
+
+    fun initialize(
+        context: Context
+    ) {
+        this.context = context
+    }
 
     suspend fun handleRequest(
         method: String,
@@ -26,6 +36,9 @@ class WeatherMCPServer {
 
                     "weather" ->
                         weatherTool(arguments)
+
+                    "weather_aggregated" ->
+                        aggregatedWeatherTool(arguments)
 
                     else ->
                         mapOf(
@@ -51,6 +64,28 @@ class WeatherMCPServer {
 
         val result =
             weatherService.getWeather(city)
+
+        return mapOf(
+            "content" to result
+        )
+    }
+
+    private fun aggregatedWeatherTool(
+        args: Map<String, Any>
+    ): Map<String, String> {
+
+        val format =
+            args["format"]
+                ?.toString()
+                ?: "text"
+
+        val aggregator =
+            WeatherAggregator(
+                context
+            )
+
+        val result =
+            aggregator.getWeatherSummary()
 
         return mapOf(
             "content" to result

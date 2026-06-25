@@ -10,8 +10,15 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.work.Constraints
 import androidx.compose.ui.unit.dp
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import com.example.aichallenge.weather.WeatherWorker
 import java.util.Properties
+import java.util.concurrent.TimeUnit
 
 class MainActivity : ComponentActivity() {
 
@@ -21,6 +28,33 @@ class MainActivity : ComponentActivity() {
         val agent = SimpleAgent(
             apiKey = getApiKey()
         )
+
+        val constraints =
+            Constraints.Builder()
+                .setRequiredNetworkType(
+                    NetworkType.CONNECTED
+                )
+                .build()
+
+        val work =
+            PeriodicWorkRequestBuilder<
+                    WeatherWorker
+                    >(
+                15,
+                TimeUnit.MINUTES
+            )
+                .setConstraints(
+                    constraints
+                )
+                .build()
+
+        WorkManager
+            .getInstance(this)
+            .enqueueUniquePeriodicWork(
+                "weather_worker",
+                ExistingPeriodicWorkPolicy.UPDATE,
+                work
+            )
 
         setContent {
 
@@ -36,20 +70,8 @@ class MainActivity : ComponentActivity() {
                 mutableStateOf(false)
             }
 
-            var toolsText by remember {
+            var aggregatedData by remember {
                 mutableStateOf("")
-            }
-
-            var city by remember {
-                mutableStateOf("")
-            }
-
-            var toolResult by remember {
-                mutableStateOf("")
-            }
-
-            var toolLoading by remember {
-                mutableStateOf(false)
             }
 
             MaterialTheme {
@@ -63,6 +85,52 @@ class MainActivity : ComponentActivity() {
                             .fillMaxSize()
                             .padding(16.dp)
                     ) {
+
+                        Card(
+                            modifier =
+                                Modifier.fillMaxWidth()
+                        ) {
+
+                            SelectionContainer {
+
+                                Text(
+                                    text = aggregatedData,
+                                    modifier =
+                                        Modifier.padding(
+                                            16.dp
+                                        )
+                                )
+                            }
+                        }
+
+                        Button(
+                            onClick = {
+
+                                agent.processAggregatedWeather(
+
+                                    onSuccess = {
+
+                                        runOnUiThread {
+
+                                            aggregatedData = it
+                                        }
+                                    },
+
+                                    onError = {
+
+                                        runOnUiThread {
+
+                                            aggregatedData = it
+                                        }
+                                    }
+                                )
+                            }
+                        ) {
+
+                            Text(
+                                "Показать сводку"
+                            )
+                        }
 
                         OutlinedTextField(
                             value = userInput,
@@ -86,8 +154,6 @@ class MainActivity : ComponentActivity() {
                                 if (userInput.isBlank()) {
                                     return@Button
                                 }
-
-                                toolsText = ""   // очищаем список инструментов
 
                                 isLoading = true
 
@@ -122,81 +188,6 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.height(8.dp)
                         )
 
-                        OutlinedTextField(
-                            value = city,
-
-                            onValueChange = {
-                                city = it
-                            },
-
-                            label = {
-                                Text("Город")
-                            },
-
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        if (toolLoading) {
-
-                            CircularProgressIndicator()
-                        }
-
-                        Button(
-
-                            enabled = !toolLoading,
-
-                            onClick = {
-
-                                toolLoading = true
-
-                                agent.processToolRequest(
-
-                                    city = city,
-
-                                    onSuccess = {
-
-                                        runOnUiThread {
-
-                                            toolResult = it
-                                            toolLoading = false
-                                        }
-                                    },
-
-                                    onError = {
-
-                                        runOnUiThread {
-
-                                            toolResult = it
-                                            toolLoading = false
-                                        }
-                                    }
-                                )
-                            },
-
-                            modifier = Modifier.fillMaxWidth()
-
-                        ) {
-
-                            Text("Получить погоду")
-                        }
-
-                        Card(
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-
-                            SelectionContainer {
-
-                                Text(
-                                    text = toolResult,
-                                    modifier = Modifier.padding(16.dp)
-                                )
-                            }
-                        }
-
-                        Spacer(
-                            modifier = Modifier.height(8.dp)
-                        )
-
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -215,7 +206,7 @@ class MainActivity : ComponentActivity() {
                                 ) {
 
                                     Text(
-                                        text = toolsText.ifBlank { responseText }
+                                        text = responseText
                                     )
                                 }
                             }
