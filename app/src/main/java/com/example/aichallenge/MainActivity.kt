@@ -40,6 +40,18 @@ class MainActivity : ComponentActivity() {
                 mutableStateOf("")
             }
 
+            var city by remember {
+                mutableStateOf("")
+            }
+
+            var toolResult by remember {
+                mutableStateOf("")
+            }
+
+            var toolLoading by remember {
+                mutableStateOf(false)
+            }
+
             MaterialTheme {
 
                 Surface(
@@ -110,48 +122,75 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.height(8.dp)
                         )
 
-                        if (isLoading) {
+                        OutlinedTextField(
+                            value = city,
+
+                            onValueChange = {
+                                city = it
+                            },
+
+                            label = {
+                                Text("Город")
+                            },
+
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        if (toolLoading) {
 
                             CircularProgressIndicator()
                         }
 
                         Button(
+
+                            enabled = !toolLoading,
+
                             onClick = {
 
-                                isLoading = true
+                                toolLoading = true
 
-                                agent.loadTools(
+                                agent.processToolRequest(
 
-                                    onSuccess = { tools ->
+                                    city = city,
+
+                                    onSuccess = {
 
                                         runOnUiThread {
 
-                                            toolsText =
-                                                tools.joinToString(
-                                                    separator = "\n\n"
-                                                ) {
-
-                                                    "• ${it.name}\n${it.description}"
-                                                }
-
-                                            isLoading = false
+                                            toolResult = it
+                                            toolLoading = false
                                         }
                                     },
 
-                                    onError = { error ->
+                                    onError = {
 
                                         runOnUiThread {
 
-                                            toolsText = error
-                                            isLoading = false
+                                            toolResult = it
+                                            toolLoading = false
                                         }
                                     }
                                 )
                             },
+
+                            modifier = Modifier.fillMaxWidth()
+
+                        ) {
+
+                            Text("Получить погоду")
+                        }
+
+                        Card(
                             modifier = Modifier.fillMaxWidth()
                         ) {
 
-                            Text("Получить инструменты")
+                            SelectionContainer {
+
+                                Text(
+                                    text = toolResult,
+                                    modifier = Modifier.padding(16.dp)
+                                )
+                            }
                         }
 
                         Spacer(
