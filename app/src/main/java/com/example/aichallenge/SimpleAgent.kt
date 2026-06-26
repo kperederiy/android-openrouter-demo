@@ -12,27 +12,41 @@ import org.json.JSONObject
 import java.io.IOException
 
 class SimpleAgent(
+
     private val apiKey: String,
+
     context: Context
+
 ) {
 
     companion object {
+
         private const val MODEL =
             "openai/gpt-4o-mini"
     }
 
-    private val client = OkHttpClient()
+    private val client =
+        OkHttpClient()
 
     private val weatherClient =
         WeatherMCPClient(context)
 
     /**
-     * Явный вызов MCP инструмента из UI
+     * Последняя сформированная сводка
      */
-    fun processToolRequest(
-        city: String,
+    private var lastSummary = ""
+
+    /**
+     * Запуск полного MCP Pipeline
+     */
+    fun runWeatherPipeline(
+
+        range: String,
+
         onSuccess: (String) -> Unit,
+
         onError: (String) -> Unit
+
     ) {
 
         CoroutineScope(Dispatchers.IO).launch {
@@ -40,169 +54,336 @@ class SimpleAgent(
             try {
 
                 val result =
-                    weatherClient.callTool(
-                        "weather",
-                        mapOf(
-                            "city" to city
-                        )
+
+                    weatherClient.runPipeline(
+
+                        query = "Брянск",
+
+                        range = range,
+
+                        filename = "weather_report.txt"
                     )
 
-                onSuccess(result)
+                if (result["status"] == "success") {
+
+                    lastSummary =
+                        result["summary"]
+                            ?.toString()
+                            ?: ""
+
+                    onSuccess(
+
+                        result["content"]
+                            .toString()
+                    )
+
+                } else {
+
+                    onError(
+
+                        result["content"]
+                            .toString()
+                    )
+                }
 
             } catch (e: Exception) {
 
                 onError(
-                    e.message ?: "Tool error"
+
+                    e.message
+                        ?: "Pipeline error"
                 )
             }
         }
     }
 
     /**
-     * Основной вход агента
+     * Главная точка входа агента
      */
     fun processRequest(
+
         userRequest: String,
+
         onSuccess: (String) -> Unit,
+
         onError: (String) -> Unit
+
     ) {
 
-        val city =
-            extractCity(userRequest)
+        val text =
+            userRequest.lowercase()
 
-        if (city != null) {
+        //------------------------------------------------------
+        // Пайплайн
+        //------------------------------------------------------
 
-            processWeatherRequest(
-                city = city,
-                originalRequest = userRequest,
-                onSuccess = onSuccess,
-                onError = onError
-            )
+        if ("пайплайн" in text) {
 
-            return
-        }
+            val range = when {
 
-        if (
-            userRequest.contains(
-                "погода за день",
-                true
-            )
-        ) {
+                "недел" in text ->
+                    "7d"
 
-            processAggregatedWeather(
+                "2 дня" in text ->
+                    "48h"
+
+                else ->
+                    "24h"
+            }
+
+            runWeatherPipeline(
+
+                range,
+
                 onSuccess,
+
                 onError
             )
 
             return
         }
 
-        if (
-            userRequest.contains(
-                "статистика погоды",
-                true
-            )
-        ) {
+        //------------------------------------------------------
+        // Последняя сводка
+        //------------------------------------------------------
 
-            processAggregatedWeather(
-                onSuccess,
-                onError
-            )
+        if ("показать сводку" in text) {
+
+            if (lastSummary.isBlank()) {
+
+                onError(
+                    "Сводка ещё не сформирована."
+                )
+
+            } else {
+
+                onSuccess(lastSummary)
+            }
 
             return
         }
+
+        //------------------------------------------------------
+        // Сохранение последней сводки
+        //------------------------------------------------------
+
+        if ("сохранить отчет" in text) {
+
+            CoroutineScope(
+                Dispatchers.IO
+            ).launch {
+
+                try {
+
+                    val result =
+
+                        weatherClient.saveReport(
+
+                            lastSummary,
+
+                            "weather_report.txt"
+                        )
+
+                    onSuccess(
+
+                        result["content"]
+                            .toString()
+                    )
+
+                } catch (e: Exception) {
+
+                    onError(
+
+                        e.message
+                            ?: "Save error"
+                    )
+                }
+            }
+
+            return
+        }
+
+        //------------------------------------------------------
+        // Текущая погода
+        //------------------------------------------------------
+
+        if ("погода сейчас" in text) {
+
+            CoroutineScope(
+                Dispatchers.IO
+            ).launch {
+
+                try {
+
+                    val weather =
+
+                        weatherClient
+                            .getWeather("Брянск")
+
+                    onSuccess(weather)
+
+                } catch (e: Exception) {
+
+                    onError(
+
+                        e.message
+                            ?: "Weather error"
+                    )
+                }
+            }
+
+            return
+        }
+
+        //------------------------------------------------------
+        // Погода за день
+        //------------------------------------------------------
+
+        if ("погода за день" in text) {
+
+            CoroutineScope(
+                Dispatchers.IO
+            ).launch {
+
+                try {
+
+                    val search =
+
+                        weatherClient
+                            .searchWeather(
+
+                                "Брянск",
+
+                                "24h"
+                            )
+
+                    val summary =
+
+                        weatherClient
+                            .summarizeWeather(
+                                search
+                            )
+
+                    lastSummary =
+                        summary["summary"]
+                            .toString()
+
+                    onSuccess(lastSummary)
+
+                } catch (e: Exception) {
+
+                    onError(
+
+                        e.message
+                            ?: "Summary error"
+                    )
+                }
+            }
+
+            return
+        }
+        //------------------------------------------------------
+        // Средняя температура
+        //------------------------------------------------------
+
+        if ("средняя температура" in text) {
+
+            CoroutineScope(Dispatchers.IO).launch {
+
+                try {
+
+                    val search =
+                        weatherClient.searchWeather(
+                            query = "Брянск",
+                            range = "24h"
+                        )
+
+                    val average =
+                        search["averageTemperature"]
+                            ?.toString()
+                            ?: "Нет данных"
+
+                    onSuccess(
+                        "Средняя температура за последние 24 часа: $average°C"
+                    )
+
+                } catch (e: Exception) {
+
+                    onError(
+                        e.message ?: "Ошибка получения средней температуры"
+                    )
+                }
+            }
+
+            return
+        }
+
+        //------------------------------------------------------
+        // Полная статистика
+        //------------------------------------------------------
+
+        if ("статистика погоды" in text) {
+
+            CoroutineScope(Dispatchers.IO).launch {
+
+                try {
+
+                    val result =
+                        weatherClient.runPipeline(
+
+                            query = "Брянск",
+
+                            range = "24h",
+
+                            filename = "weather_report.txt"
+                        )
+
+                    lastSummary =
+                        result["summary"]
+                            ?.toString()
+                            ?: ""
+
+                    onSuccess(
+                        result["content"]
+                            .toString()
+                    )
+
+                } catch (e: Exception) {
+
+                    onError(
+                        e.message ?: "Ошибка получения статистики"
+                    )
+                }
+            }
+
+            return
+        }
+
+        //------------------------------------------------------
+        // Если специальных команд нет —
+        // обращаемся к LLM
+        //------------------------------------------------------
 
         callLLM(
+
             prompt = userRequest,
+
             onSuccess = onSuccess,
+
             onError = onError
         )
     }
-
-    fun processAggregatedWeather(
-        onSuccess: (String) -> Unit,
-        onError: (String) -> Unit
-    ) {
-
-        CoroutineScope(
-            Dispatchers.IO
-        ).launch {
-
-            try {
-
-                val result =
-                    weatherClient
-                        .getAggregatedWeather()
-
-                onSuccess(result)
-
-            } catch (e: Exception) {
-
-                onError(
-                    e.message ?: "Error"
-                )
-            }
-        }
-    }
-
     /**
-     * Агент вызывает MCP weather,
-     * затем передает результат в LLM
-     */
-    private fun processWeatherRequest(
-        city: String,
-        originalRequest: String,
-        onSuccess: (String) -> Unit,
-        onError: (String) -> Unit
-    ) {
-
-        CoroutineScope(Dispatchers.IO).launch {
-
-            try {
-
-                val weatherResult =
-                    weatherClient.callTool(
-                        "weather",
-                        mapOf(
-                            "city" to city
-                        )
-                    )
-
-                val prompt =
-                    """
-                    Пользователь задал вопрос:
-
-                    $originalRequest
-
-                    MCP инструмент weather вернул:
-
-                    $weatherResult
-
-                    Используй эти данные и ответь пользователю.
-                    """.trimIndent()
-
-                callLLM(
-                    prompt = prompt,
-                    onSuccess = onSuccess,
-                    onError = onError
-                )
-
-            } catch (e: Exception) {
-
-                onError(
-                    e.message ?: "Tool error"
-                )
-            }
-        }
-    }
-
-    /**
-     * Отправка запроса в OpenRouter
+     * Запрос к OpenRouter
      */
     private fun callLLM(
+
         prompt: String,
+
         onSuccess: (String) -> Unit,
+
         onError: (String) -> Unit
+
     ) {
 
         val json = JSONObject()
@@ -215,6 +396,7 @@ class SimpleAgent(
         val messages = JSONArray()
 
         messages.put(
+
             JSONObject().apply {
 
                 put(
@@ -234,35 +416,48 @@ class SimpleAgent(
             messages
         )
 
-        val body =
-            RequestBody.create(
-                "application/json".toMediaType(),
-                json.toString()
-            )
+        val body = RequestBody.create(
+
+            "application/json"
+                .toMediaType(),
+
+            json.toString()
+        )
 
         val request =
+
             Request.Builder()
+
                 .url(
                     "https://openrouter.ai/api/v1/chat/completions"
                 )
+
                 .addHeader(
                     "Authorization",
                     "Bearer $apiKey"
                 )
+
                 .addHeader(
                     "Content-Type",
                     "application/json"
                 )
+
                 .post(body)
+
                 .build()
 
         client.newCall(request)
+
             .enqueue(
+
                 object : Callback {
 
                     override fun onFailure(
+
                         call: Call,
+
                         e: IOException
+
                     ) {
 
                         onError(
@@ -271,18 +466,21 @@ class SimpleAgent(
                     }
 
                     override fun onResponse(
+
                         call: Call,
+
                         response: Response
+
                     ) {
 
-                        val responseBody =
+                        val body =
                             response.body?.string()
                                 ?: ""
 
                         if (!response.isSuccessful) {
 
                             onError(
-                                "HTTP ${response.code}\n$responseBody"
+                                "HTTP ${response.code}\n$body"
                             )
 
                             return
@@ -291,10 +489,15 @@ class SimpleAgent(
                         try {
 
                             val answer =
-                                JSONObject(responseBody)
+
+                                JSONObject(body)
+
                                     .getJSONArray("choices")
+
                                     .getJSONObject(0)
+
                                     .getJSONObject("message")
+
                                     .getString("content")
 
                             onSuccess(answer)
@@ -302,29 +505,11 @@ class SimpleAgent(
                         } catch (e: Exception) {
 
                             onError(
-                                "Ошибка обработки ответа: ${e.message}"
+                                e.message ?: "Ошибка обработки ответа"
                             )
                         }
                     }
                 }
             )
-    }
-
-    /**
-     * Поиск города в запросе пользователя
-     */
-    private fun extractCity(
-        text: String
-    ): String? {
-
-        val regex =
-            Regex(
-                "погод[ауы]?.*?в\\s+([A-Za-zА-Яа-я-]+)",
-                RegexOption.IGNORE_CASE
-            )
-
-        return regex.find(text)
-            ?.groupValues
-            ?.getOrNull(1)
     }
 }
