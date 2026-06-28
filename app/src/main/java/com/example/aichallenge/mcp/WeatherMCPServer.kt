@@ -29,12 +29,20 @@ class WeatherMCPServer(
     private val fileSaver =
         FileSaver(context)
 
-    suspend fun handleRequest(
-        method: String,
-        params: Map<String, Any>
-    ): Map<String, Any> {
+    suspend fun handleRequest(method: String, params: Map<String, Any>): Map<String, Any> {
 
         return try {
+
+            Log.d(TAG, "Обработка запроса: $method")
+
+            // Извлекаем имя инструмента без префикса
+            val toolName = when {
+                method == "tools/call" -> {
+                    val name = params["name"] as? String ?: ""
+                    name.substringAfterLast(".")
+                }
+                else -> method
+            }
 
             when (method) {
 
