@@ -100,4 +100,68 @@ class EmbeddingService(
                 )
             }
     }
+
+    suspend fun createEmbedding(
+        text: String
+    ): List<Float> = withContext(Dispatchers.IO) {
+
+        val requestBody = EmbeddingRequest(
+
+            model = MODEL,
+
+            input = text
+        )
+
+        val body = json
+            .encodeToString(requestBody)
+            .toRequestBody(
+                "application/json".toMediaType()
+            )
+
+        val request = Request.Builder()
+
+            .url(URL)
+
+            .addHeader(
+                "Authorization",
+                "Bearer $apiKey"
+            )
+
+            .addHeader(
+                "Content-Type",
+                "application/json"
+            )
+
+            .post(body)
+
+            .build()
+
+        client.newCall(request)
+            .execute()
+            .use { response ->
+
+                if (!response.isSuccessful) {
+
+                    throw Exception(
+                        "HTTP ${response.code}"
+                    )
+                }
+
+                val responseBody =
+                    response.body?.string()
+                        ?: throw Exception(
+                            "Пустой ответ сервера"
+                        )
+
+                val embeddingResponse =
+                    json.decodeFromString<EmbeddingResponse>(
+                        responseBody
+                    )
+
+                embeddingResponse
+                    .data
+                    .first()
+                    .embedding
+            }
+    }
 }

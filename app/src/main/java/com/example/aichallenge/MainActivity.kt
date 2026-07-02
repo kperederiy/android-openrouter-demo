@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -42,11 +43,31 @@ class MainActivity : ComponentActivity() {
             apiKey = apiKey
         )
 
+        val ragAgent = RagAgent(
+
+            context = this,
+
+            embeddingService = embeddingService,
+
+            simpleAgent = agent
+        )
+
         val indexInitializer = IndexInitializer(
             context = this,
             documentLoader = documentLoader,
             chunkingStrategy = chunkingStrategy,
             embeddingService = embeddingService
+        )
+
+        val benchmarkRunner = BenchmarkRunner(
+
+            simpleAgent = agent,
+
+            ragAgent = ragAgent
+        )
+
+        val benchmarkStorage = BenchmarkStorage(
+            context = this
         )
 
         lifecycleScope.launch {
@@ -123,6 +144,38 @@ class MainActivity : ComponentActivity() {
                 mutableStateOf("1000")
             }
 
+            var isBenchmarkRunning by remember {
+
+                mutableStateOf(false)
+            }
+
+            var benchmarkProgress by remember {
+
+                mutableIntStateOf(0)
+            }
+
+            var benchmarkTotal by remember {
+
+                mutableIntStateOf(10)
+            }
+
+            var benchmarkResults by remember {
+
+                mutableStateOf<List<BenchmarkResult>>(emptyList())
+            }
+
+            var benchmarkStatus by remember {
+
+                mutableStateOf("")
+            }
+
+            var selectedAgentMode by remember {
+
+                mutableStateOf(
+                    AgentMode.SIMPLE
+                )
+            }
+
             fun rebuildIndex() {
 
                 lifecycleScope.launch {
@@ -195,6 +248,46 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
+            fun runBenchmark() {
+
+                lifecycleScope.launch {
+
+                    isBenchmarkRunning = true
+
+                    benchmarkProgress = 0
+
+                    benchmarkStatus = "Начало Benchmark..."
+
+                    val results = benchmarkRunner.runBenchmark {
+
+                            current,
+
+                            total ->
+
+                        runOnUiThread {
+
+                            benchmarkProgress = current
+
+                            benchmarkTotal = total
+
+                            benchmarkStatus =
+
+                                "Выполняется вопрос $current из $total"
+                        }
+                    }
+
+                    benchmarkStorage.saveResults(results)
+
+                    benchmarkResults = results
+
+                    benchmarkStatus =
+
+                        "Benchmark завершён"
+
+                    isBenchmarkRunning = false
+                }
+            }
+
             LaunchedEffect(Unit) {
 
                 rebuildIndex()
@@ -211,14 +304,6 @@ class MainActivity : ComponentActivity() {
                             .fillMaxSize()
                             .padding(16.dp)
                     ) {
-
-                        Text(
-                            text = "Стратегия Chunking"
-                        )
-
-                        Spacer(
-                            modifier = Modifier.height(8.dp)
-                        )
 
                         Row {
 
@@ -260,10 +345,6 @@ class MainActivity : ComponentActivity() {
                             ChunkingType.FIXED_SIZE
                         ) {
 
-                            Spacer(
-                                modifier = Modifier.height(8.dp)
-                            )
-
                             OutlinedTextField(
 
                                 value = fixedChunkSize,
@@ -279,9 +360,6 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                         }
-                        Spacer(
-                            modifier = Modifier.height(12.dp)
-                        )
 
                         Button(
 
@@ -297,11 +375,27 @@ class MainActivity : ComponentActivity() {
                             Text("Переиндексировать")
                         }
 
-                        if (isIndexing) {
+                        Spacer(
+                            modifier = Modifier.height(8.dp)
+                        )
 
-                            Spacer(
-                                modifier = Modifier.height(12.dp)
-                            )
+                        Button(
+
+                            enabled = !isBenchmarkRunning,
+
+                            onClick = {
+
+                                runBenchmark()
+                            },
+
+                            modifier = Modifier.fillMaxWidth()
+
+                        ) {
+
+                            Text("Запустить Benchmark")
+                        }
+
+                        if (isIndexing) {
 
                             LinearProgressIndicator(
 
@@ -313,10 +407,6 @@ class MainActivity : ComponentActivity() {
 
                                 modifier =
                                     Modifier.fillMaxWidth()
-                            )
-
-                            Spacer(
-                                modifier = Modifier.height(8.dp)
                             )
 
                             Text(indexingText)
@@ -332,6 +422,250 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
+                        if (isBenchmarkRunning) {
+
+                            Spacer(
+                                modifier = Modifier.height(16.dp)
+                            )
+
+                            LinearProgressIndicator(
+
+                                progress = {
+
+                                    benchmarkProgress.toFloat() /
+                                            benchmarkTotal.toFloat()
+
+                                },
+
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            Spacer(
+                                modifier = Modifier.height(8.dp)
+                            )
+
+                            Text(
+
+                                benchmarkStatus
+                            )
+
+                            Text(
+
+                                "$benchmarkProgress / $benchmarkTotal"
+                            )
+
+                            Spacer(
+                                modifier = Modifier.height(16.dp)
+                            )
+                        }
+
+                        if (
+
+                            !isBenchmarkRunning &&
+
+                            benchmarkResults.isNotEmpty()
+
+                        ) {
+
+                            Spacer(
+                                modifier = Modifier.height(16.dp)
+                            )
+
+                            Text(
+
+                                text = "Результаты Benchmark",
+
+                                style = MaterialTheme.typography.titleMedium
+                            )
+
+                            Spacer(
+                                modifier = Modifier.height(8.dp)
+                            )
+
+                            Card(
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+
+                                Column {
+
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(8.dp)
+                                    ) {
+
+                                        Text(
+
+                                            text = "#",
+
+                                            modifier = Modifier.width(40.dp)
+                                        )
+
+                                        Text(
+
+                                            text = "Simple",
+
+                                            modifier = Modifier.weight(1f)
+                                        )
+
+                                        Text(
+
+                                            text = "RAG",
+
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+
+                                    HorizontalDivider()
+
+                                    benchmarkResults.forEach { result ->
+
+                                        var expanded by remember {
+
+                                            mutableStateOf(false)
+                                        }
+
+                                        Column {
+
+                                            Row(
+
+                                                modifier = Modifier
+
+                                                    .fillMaxWidth()
+
+                                                    .padding(8.dp)
+
+                                                    .clickable {
+
+                                                        expanded = !expanded
+                                                    }
+
+                                            ) {
+
+                                                Text(
+
+                                                    text = result.id.toString(),
+
+                                                    modifier = Modifier.width(40.dp)
+                                                )
+
+                                                Text(
+
+                                                    text =
+
+                                                        "${result.simpleTimeMs} ms",
+
+                                                    modifier = Modifier.weight(1f)
+                                                )
+
+                                                Text(
+
+                                                    text =
+
+                                                        "${result.ragTimeMs} ms",
+
+                                                    modifier = Modifier.weight(1f)
+                                                )
+                                            }
+
+                                            if (expanded) {
+
+                                                HorizontalDivider()
+
+                                                Column(
+
+                                                    modifier = Modifier
+                                                        .padding(12.dp)
+
+                                                ) {
+
+                                                    Text(
+
+                                                        text = "Вопрос:",
+
+                                                        style =
+                                                            MaterialTheme.typography.titleSmall
+                                                    )
+
+                                                    Text(result.question)
+
+                                                    Spacer(
+                                                        modifier = Modifier.height(8.dp)
+                                                    )
+
+                                                    Text(
+
+                                                        text = "SimpleAgent",
+
+                                                        style =
+                                                            MaterialTheme.typography.titleSmall
+                                                    )
+
+                                                    Text(result.simpleAnswer)
+
+                                                    Spacer(
+                                                        modifier = Modifier.height(12.dp)
+                                                    )
+
+                                                    Text(
+
+                                                        text = "RAG",
+
+                                                        style =
+                                                            MaterialTheme.typography.titleSmall
+                                                    )
+
+                                                    Text(result.ragAnswer)
+                                                }
+                                            }
+
+                                            HorizontalDivider()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Text(
+                            text = "Режим ответа"
+                        )
+
+                        Row {
+
+                            RadioButton(
+
+                                selected =
+                                    selectedAgentMode ==
+                                            AgentMode.SIMPLE,
+
+                                onClick = {
+
+                                    selectedAgentMode =
+                                        AgentMode.SIMPLE
+                                }
+                            )
+
+                            Text("Без RAG")
+                        }
+
+                        Row {
+
+                            RadioButton(
+
+                                selected =
+                                    selectedAgentMode ==
+                                            AgentMode.RAG,
+
+                                onClick = {
+
+                                    selectedAgentMode =
+                                        AgentMode.RAG
+                                }
+                            )
+
+                            Text("С RAG")
+                        }
+
                         OutlinedTextField(
                             value = userInput,
                             onValueChange = {
@@ -341,10 +675,6 @@ class MainActivity : ComponentActivity() {
                                 Text("Введите запрос")
                             },
                             modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Spacer(
-                            modifier = Modifier.height(8.dp)
                         )
 
                         Button(
@@ -357,27 +687,64 @@ class MainActivity : ComponentActivity() {
 
                                 isLoading = true
 
-                                agent.processRequest(
-                                    userInput,
+                                when (selectedAgentMode) {
 
-                                    onSuccess = { answer ->
+                                    AgentMode.SIMPLE -> {
 
-                                        runOnUiThread {
+                                        agent.processRequest(
 
-                                            responseText = answer
-                                            isLoading = false
-                                        }
-                                    },
+                                            userInput,
 
-                                    onError = { error ->
+                                            onSuccess = { answer ->
 
-                                        runOnUiThread {
+                                                runOnUiThread {
 
-                                            responseText = error
-                                            isLoading = false
-                                        }
+                                                    responseText = answer
+
+                                                    isLoading = false
+                                                }
+                                            },
+
+                                            onError = { error ->
+
+                                                runOnUiThread {
+
+                                                    responseText = error
+
+                                                    isLoading = false
+                                                }
+                                            }
+                                        )
                                     }
-                                )
+
+                                    AgentMode.RAG -> {
+
+                                        ragAgent.processRequest(
+
+                                            question = userInput,
+
+                                            onSuccess = { answer ->
+
+                                                runOnUiThread {
+
+                                                    responseText = answer
+
+                                                    isLoading = false
+                                                }
+                                            },
+
+                                            onError = { error ->
+
+                                                runOnUiThread {
+
+                                                    responseText = error
+
+                                                    isLoading = false
+                                                }
+                                            }
+                                        )
+                                    }
+                                }
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -391,10 +758,6 @@ class MainActivity : ComponentActivity() {
                         if (isLoading) {
                             CircularProgressIndicator()
                         }
-
-                        Spacer(
-                            modifier = Modifier.height(8.dp)
-                        )
 
                         Card(
                             modifier = Modifier
