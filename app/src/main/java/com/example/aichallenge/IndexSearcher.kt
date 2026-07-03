@@ -14,9 +14,9 @@ class IndexSearcher(
 
         question: String,
 
-        topK: Int = 3
+        topK: Int = 10
 
-    ): List<Chunk> {
+    ): List<SearchResult> {
 
         val storage = IndexStorage(context)
 
@@ -31,12 +31,15 @@ class IndexSearcher(
         }
 
         val questionEmbedding =
+
             embeddingService.createEmbedding(question)
 
-        val scoredChunks =
-            index.chunks.map { chunk ->
+        return index.chunks
+
+            .map { chunk ->
 
                 val similarity =
+
                     CosineSimilarity.calculate(
 
                         questionEmbedding,
@@ -44,23 +47,19 @@ class IndexSearcher(
                         chunk.embedding
                     )
 
-                chunk to similarity
+                SearchResult(
+
+                    chunk = chunk,
+
+                    similarity = similarity
+                )
             }
 
-        return scoredChunks
+            .sortedByDescending {
 
-            .sortedByDescending { pair ->
-
-                pair.second
-
+                it.similarity
             }
 
             .take(topK)
-
-            .map { pair ->
-
-                pair.first
-
-            }
     }
 }

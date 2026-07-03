@@ -1,6 +1,7 @@
 package com.example.aichallenge
 
 import android.content.Context
+import kotlinx.coroutines.runBlocking
 
 class RagAgent(
 
@@ -21,6 +22,15 @@ class RagAgent(
 
     private val promptBuilder = PromptBuilder()
 
+    private val queryRewriter = QueryRewriter()
+
+    private val similarityFilter = SimilarityFilter(
+
+        threshold = 0.75,
+
+        topKAfter = 3
+    )
+
     fun processRequest(
 
         question: String,
@@ -35,22 +45,66 @@ class RagAgent(
 
             try {
 
-                val chunks = kotlinx.coroutines.runBlocking {
+                //--------------------------------------------------
+                // 1. Query Rewrite
+                //--------------------------------------------------
+
+                val rewrittenQuestion =
+
+                    queryRewriter.rewrite(question)
+
+                //--------------------------------------------------
+                // 2. Vector Search
+                //--------------------------------------------------
+
+                val searchResults = runBlocking {
 
                     indexSearcher.search(
 
-                        question = question,
+                        question = rewrittenQuestion,
 
-                        topK = 3
+                        topK = 10
                     )
                 }
 
-                val prompt = promptBuilder.buildPrompt(
+                //--------------------------------------------------
+                // 3. Similarity Filter
+                //--------------------------------------------------
 
-                    question = question,
+                val filteredResults =
 
-                    chunks = chunks
-                )
+                    similarityFilter.filter(
+
+                        searchResults
+                    )
+
+                //--------------------------------------------------
+                // 4. Извлекаем Chunk
+                //--------------------------------------------------
+
+                val chunks =
+
+                    filteredResults.map {
+
+                        it.chunk
+                    }
+
+                //--------------------------------------------------
+                // 5. Build Prompt
+                //--------------------------------------------------
+
+                val prompt =
+
+                    promptBuilder.buildPrompt(
+
+                        question = question,
+
+                        chunks = chunks
+                    )
+
+                //--------------------------------------------------
+                // 6. Ask LLM
+                //--------------------------------------------------
 
                 simpleAgent.processRequest(
 
