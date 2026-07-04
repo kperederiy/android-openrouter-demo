@@ -13,12 +13,92 @@ class PromptBuilder {
         val builder = StringBuilder()
 
         builder.appendLine(
-            "Ты помощник, который отвечает на вопросы, используя только предоставленный контекст."
+            "Ты помощник, который отвечает ИСКЛЮЧИТЕЛЬНО на основе предоставленного контекста."
         )
 
         builder.appendLine()
 
-        builder.appendLine("Контекст:")
+        builder.appendLine(
+            "Запрещено использовать собственные знания."
+        )
+
+        builder.appendLine()
+
+        builder.appendLine(
+            "Если информации недостаточно, обязательно ответь:"
+        )
+
+        builder.appendLine()
+
+        builder.appendLine(
+            "Ответ:"
+        )
+
+        builder.appendLine(
+            "Не знаю. Пожалуйста, уточните вопрос."
+        )
+
+        builder.appendLine()
+
+        builder.appendLine(
+            "Источники:"
+        )
+
+        builder.appendLine(
+            "нет"
+        )
+
+        builder.appendLine()
+
+        builder.appendLine(
+            "Цитаты:"
+        )
+
+        builder.appendLine(
+            "нет"
+        )
+
+        builder.appendLine()
+
+        builder.appendLine(
+            "Во всех остальных случаях ОБЯЗАТЕЛЬНО используй следующий формат:"
+        )
+
+        builder.appendLine()
+
+        builder.appendLine(
+            "Ответ:"
+        )
+
+        builder.appendLine(
+            "<ответ>"
+        )
+
+        builder.appendLine()
+
+        builder.appendLine(
+            "Источники:"
+        )
+
+        builder.appendLine(
+            "- source=<source>; section=<section>; chunkId=<chunkId>"
+        )
+
+        builder.appendLine()
+
+        builder.appendLine(
+            "Цитаты:"
+        )
+
+        builder.appendLine(
+            "- <короткая цитата из найденного чанка>"
+        )
+
+        builder.appendLine()
+
+        builder.appendLine(
+            "Контекст:"
+        )
 
         builder.appendLine()
 
@@ -29,15 +109,20 @@ class PromptBuilder {
             )
 
             builder.appendLine(
-                "Источник: ${chunk.fileName}"
+                "source=${chunk.source}"
             )
 
-            if (chunk.section.isNotBlank()) {
+            builder.appendLine(
+                "file=${chunk.fileName}"
+            )
 
-                builder.appendLine(
-                    "Раздел: ${chunk.section}"
-                )
-            }
+            builder.appendLine(
+                "section=${chunk.section}"
+            )
+
+            builder.appendLine(
+                "chunkId=${chunk.chunkId}"
+            )
 
             builder.appendLine()
 
@@ -55,17 +140,11 @@ class PromptBuilder {
         }
 
         builder.appendLine(
-            "Вопрос пользователя:"
+            "Вопрос:"
         )
 
         builder.appendLine(
             question
-        )
-
-        builder.appendLine()
-
-        builder.appendLine(
-            "Если ответ отсутствует в контексте, честно сообщи, что информации недостаточно."
         )
 
         return builder.toString()

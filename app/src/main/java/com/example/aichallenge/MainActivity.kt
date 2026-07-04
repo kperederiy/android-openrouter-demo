@@ -11,6 +11,7 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
@@ -280,9 +281,30 @@ class MainActivity : ComponentActivity() {
 
                     benchmarkResults = results
 
-                    benchmarkStatus =
+                    val builder = StringBuilder()
 
-                        "Benchmark завершён"
+                    builder.appendLine("============== BENCHMARK ==============")
+                    builder.appendLine()
+
+                    results.forEach { result ->
+
+                        builder.appendLine("Вопрос ${result.id}")
+                        builder.appendLine()
+
+                        builder.appendLine(result.question)
+                        builder.appendLine()
+
+                        builder.appendLine(result.ragAnswer)
+
+                        builder.appendLine()
+
+                        builder.appendLine("======================================")
+                        builder.appendLine()
+                    }
+
+                    responseText = builder.toString()
+
+                    benchmarkStatus = "Benchmark завершён"
 
                     isBenchmarkRunning = false
                 }
@@ -305,40 +327,30 @@ class MainActivity : ComponentActivity() {
                             .padding(16.dp)
                     ) {
 
-                        Row {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Start
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(end = 16.dp)
+                            ) {
+                                RadioButton(
+                                    selected = selectedChunking == ChunkingType.PARAGRAPH,
+                                    onClick = { selectedChunking = ChunkingType.PARAGRAPH }
+                                )
+                                Text("Paragraph")
+                            }
 
-                            RadioButton(
-
-                                selected =
-                                    selectedChunking ==
-                                            ChunkingType.PARAGRAPH,
-
-                                onClick = {
-
-                                    selectedChunking =
-                                        ChunkingType.PARAGRAPH
-                                }
-                            )
-
-                            Text("Paragraph")
-                        }
-
-                        Row {
-
-                            RadioButton(
-
-                                selected =
-                                    selectedChunking ==
-                                            ChunkingType.FIXED_SIZE,
-
-                                onClick = {
-
-                                    selectedChunking =
-                                        ChunkingType.FIXED_SIZE
-                                }
-                            )
-
-                            Text("Fixed Size")
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = selectedChunking == ChunkingType.FIXED_SIZE,
+                                    onClick = { selectedChunking = ChunkingType.FIXED_SIZE }
+                                )
+                                Text("Fixed Size")
+                            }
                         }
 
                         if (selectedChunking ==
@@ -483,11 +495,17 @@ class MainActivity : ComponentActivity() {
                             )
 
                             Card(
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 100.dp)
                             ) {
 
-                                Column {
-
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .verticalScroll(rememberScrollState())
+                                        .padding(vertical = 8.dp)
+                                ) {
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -626,44 +644,30 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        Text(
-                            text = "Режим ответа"
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Start
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(end = 16.dp)
+                            ) {
+                                RadioButton(
+                                    selected = selectedAgentMode == AgentMode.SIMPLE,
+                                    onClick = { selectedAgentMode = AgentMode.SIMPLE }
+                                )
+                                Text("Без RAG")
+                            }
 
-                        Row {
-
-                            RadioButton(
-
-                                selected =
-                                    selectedAgentMode ==
-                                            AgentMode.SIMPLE,
-
-                                onClick = {
-
-                                    selectedAgentMode =
-                                        AgentMode.SIMPLE
-                                }
-                            )
-
-                            Text("Без RAG")
-                        }
-
-                        Row {
-
-                            RadioButton(
-
-                                selected =
-                                    selectedAgentMode ==
-                                            AgentMode.RAG,
-
-                                onClick = {
-
-                                    selectedAgentMode =
-                                        AgentMode.RAG
-                                }
-                            )
-
-                            Text("С RAG")
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = selectedAgentMode == AgentMode.RAG,
+                                    onClick = { selectedAgentMode = AgentMode.RAG }
+                                )
+                                Text("С RAG")
+                            }
                         }
 
                         OutlinedTextField(

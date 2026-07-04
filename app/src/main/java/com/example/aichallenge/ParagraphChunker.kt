@@ -8,10 +8,12 @@ class ParagraphChunker : ChunkingStrategy {
 
         val chunks = mutableListOf<Chunk>()
 
+        // Разбиваем по двойным переносам строки или по заголовкам
         val paragraphs = document.content
-            .split("\n\n")
+            .split(Regex("\n\\s*\n"))
 
         var chunkNumber = 1
+        var currentSection = ""
 
         for (paragraph in paragraphs) {
 
@@ -19,6 +21,12 @@ class ParagraphChunker : ChunkingStrategy {
 
             if (text.isBlank()) {
                 continue
+            }
+
+            // Проверяем, является ли абзац заголовком
+            if (text.startsWith("#")) {
+                currentSection = text.replace(Regex("^#+\\s*"), "").trim()
+                // Заголовки тоже сохраняем как отдельные чанки
             }
 
             chunks.add(
@@ -33,7 +41,7 @@ class ParagraphChunker : ChunkingStrategy {
 
                     title = document.title,
 
-                    section = "",
+                    section = currentSection,  // Сохраняем текущую секцию
 
                     text = text
                 )
@@ -41,6 +49,11 @@ class ParagraphChunker : ChunkingStrategy {
 
             chunkNumber++
         }
+
+        android.util.Log.d(
+            "ParagraphChunker",
+            "Created ${chunks.size} chunks for ${document.fileName}"
+        )
 
         return chunks
     }

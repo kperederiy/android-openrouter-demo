@@ -1,6 +1,7 @@
 package com.example.aichallenge
 
 import android.content.Context
+import android.util.Log
 import kotlinx.coroutines.runBlocking
 
 class RagAgent(
@@ -26,9 +27,9 @@ class RagAgent(
 
     private val similarityFilter = SimilarityFilter(
 
-        threshold = 0.75,
+        threshold = 0.7,
 
-        topKAfter = 3
+        topKAfter = 5
     )
 
     fun processRequest(
@@ -45,6 +46,11 @@ class RagAgent(
 
             try {
 
+                Log.d(
+                    "RagAgent",
+                    "Processing question: $question"
+                )
+
                 //--------------------------------------------------
                 // 1. Query Rewrite
                 //--------------------------------------------------
@@ -52,6 +58,11 @@ class RagAgent(
                 val rewrittenQuestion =
 
                     queryRewriter.rewrite(question)
+
+                Log.d(
+                    "RagAgent",
+                    "Rewritten: $rewrittenQuestion"
+                )
 
                 //--------------------------------------------------
                 // 2. Vector Search
@@ -67,6 +78,11 @@ class RagAgent(
                     )
                 }
 
+                Log.d(
+                    "RagAgent",
+                    "Found ${searchResults.size} results"
+                )
+
                 //--------------------------------------------------
                 // 3. Similarity Filter
                 //--------------------------------------------------
@@ -74,9 +90,13 @@ class RagAgent(
                 val filteredResults =
 
                     similarityFilter.filter(
-
                         searchResults
                     )
+
+                Log.d(
+                    "RagAgent",
+                    "Filtered to ${filteredResults.size} results"
+                )
 
                 //--------------------------------------------------
                 // 4. Извлекаем Chunk
@@ -90,7 +110,36 @@ class RagAgent(
                     }
 
                 //--------------------------------------------------
-                // 5. Build Prompt
+                // 5. Если релевантных документов нет
+                //--------------------------------------------------
+
+                if (chunks.isEmpty()) {
+
+                    Log.w(
+                        "RagAgent",
+                        "No relevant chunks found"
+                    )
+
+                    onSuccess(
+
+                        """
+Ответ:
+Не знаю. Пожалуйста, уточните вопрос.
+
+Источники:
+нет
+
+Цитаты:
+нет
+                        """.trimIndent()
+
+                    )
+
+                    return@Thread
+                }
+
+                //--------------------------------------------------
+                // 6. Build Prompt
                 //--------------------------------------------------
 
                 val prompt =
@@ -102,20 +151,47 @@ class RagAgent(
                         chunks = chunks
                     )
 
+                Log.d(
+                    "RagAgent",
+                    "Prompt length: ${prompt.length}"
+                )
+
                 //--------------------------------------------------
-                // 6. Ask LLM
+                // 7. Ask LLM
                 //--------------------------------------------------
 
                 simpleAgent.processRequest(
 
                     userRequest = prompt,
 
-                    onSuccess = onSuccess,
+                    onSuccess = { answer ->
 
-                    onError = onError
+                        Log.d(
+                            "RagAgent",
+                            "LLM answered successfully"
+                        )
+
+                        onSuccess(answer)
+                    },
+
+                    onError = { error ->
+
+                        Log.e(
+                            "RagAgent",
+                            error
+                        )
+
+                        onError(error)
+                    }
                 )
 
             } catch (e: Exception) {
+
+                Log.e(
+                    "RagAgent",
+                    "Error",
+                    e
+                )
 
                 onError(
 

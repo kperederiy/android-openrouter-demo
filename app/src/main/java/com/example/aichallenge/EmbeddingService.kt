@@ -35,133 +35,147 @@ class EmbeddingService(
         chunk: Chunk
     ): Chunk = withContext(Dispatchers.IO) {
 
-        val requestBody = EmbeddingRequest(
+        try {
+            val requestBody = EmbeddingRequest(
 
-            model = MODEL,
+                model = MODEL,
 
-            input = chunk.text
-        )
-
-        val body = json
-            .encodeToString(requestBody)
-            .toRequestBody(
-                "application/json".toMediaType()
+                input = chunk.text
             )
 
-        val request = Request.Builder()
+            val body = json
+                .encodeToString(requestBody)
+                .toRequestBody(
+                    "application/json".toMediaType()
+                )
 
-            .url(URL)
+            val request = Request.Builder()
 
-            .addHeader(
-                "Authorization",
-                "Bearer $apiKey"
-            )
+                .url(URL)
 
-            .addHeader(
-                "Content-Type",
-                "application/json"
-            )
+                .addHeader(
+                    "Authorization",
+                    "Bearer $apiKey"
+                )
 
-            .post(body)
+                .addHeader(
+                    "Content-Type",
+                    "application/json"
+                )
 
-            .build()
+                .post(body)
 
-        client.newCall(request)
-            .execute()
-            .use { response ->
+                .build()
 
-                if (!response.isSuccessful) {
+            client.newCall(request)
+                .execute()
+                .use { response ->
 
-                    throw Exception(
-                        "HTTP ${response.code}"
-                    )
-                }
+                    if (!response.isSuccessful) {
 
-                val responseBody =
-                    response.body?.string()
-                        ?: throw Exception(
-                            "Пустой ответ сервера"
+                        val errorBody = response.body?.string() ?: ""
+                        android.util.Log.e("EmbeddingService", "Error: $errorBody")
+                        throw Exception(
+                            "HTTP ${response.code}: $errorBody"
+                        )
+                    }
+
+                    val responseBody =
+                        response.body?.string()
+                            ?: throw Exception(
+                                "Пустой ответ сервера"
+                            )
+
+                    val embeddingResponse =
+                        json.decodeFromString<EmbeddingResponse>(
+                            responseBody
                         )
 
-                val embeddingResponse =
-                    json.decodeFromString<EmbeddingResponse>(
-                        responseBody
+                    val embedding =
+                        embeddingResponse
+                            .data
+                            .first()
+                            .embedding
+
+                    chunk.copy(
+
+                        embedding = embedding
                     )
-
-                val embedding =
-                    embeddingResponse
-                        .data
-                        .first()
-                        .embedding
-
-                chunk.copy(
-
-                    embedding = embedding
-                )
-            }
+                }
+        } catch (e: Exception) {
+            android.util.Log.e("EmbeddingService", "Failed to create embedding", e)
+            throw e
+        }
     }
 
     suspend fun createEmbedding(
         text: String
     ): List<Float> = withContext(Dispatchers.IO) {
 
-        val requestBody = EmbeddingRequest(
+        try {
+            val requestBody = EmbeddingRequest(
 
-            model = MODEL,
+                model = MODEL,
 
-            input = text
-        )
-
-        val body = json
-            .encodeToString(requestBody)
-            .toRequestBody(
-                "application/json".toMediaType()
+                input = text
             )
 
-        val request = Request.Builder()
+            val body = json
+                .encodeToString(requestBody)
+                .toRequestBody(
+                    "application/json".toMediaType()
+                )
 
-            .url(URL)
+            val request = Request.Builder()
 
-            .addHeader(
-                "Authorization",
-                "Bearer $apiKey"
-            )
+                .url(URL)
 
-            .addHeader(
-                "Content-Type",
-                "application/json"
-            )
+                .addHeader(
+                    "Authorization",
+                    "Bearer $apiKey"
+                )
 
-            .post(body)
+                .addHeader(
+                    "Content-Type",
+                    "application/json"
+                )
 
-            .build()
+                .post(body)
 
-        client.newCall(request)
-            .execute()
-            .use { response ->
+                .build()
 
-                if (!response.isSuccessful) {
+            client.newCall(request)
+                .execute()
+                .use { response ->
 
-                    throw Exception(
-                        "HTTP ${response.code}"
-                    )
-                }
+                    if (!response.isSuccessful) {
 
-                val responseBody =
-                    response.body?.string()
-                        ?: throw Exception(
-                            "Пустой ответ сервера"
+                        val errorBody = response.body?.string() ?: ""
+                        android.util.Log.e("EmbeddingService", "Error: $errorBody")
+                        throw Exception(
+                            "HTTP ${response.code}: $errorBody"
+                        )
+                    }
+
+                    val responseBody =
+                        response.body?.string()
+                            ?: throw Exception(
+                                "Пустой ответ сервера"
+                            )
+
+                    val embeddingResponse =
+                        json.decodeFromString<EmbeddingResponse>(
+                            responseBody
                         )
 
-                val embeddingResponse =
-                    json.decodeFromString<EmbeddingResponse>(
-                        responseBody
-                    )
-
-                embeddingResponse
-                    .data
-                    .first()
-                    .embedding
-            }
+                    embeddingResponse
+                        .data
+                        .first()
+                        .embedding
+                }
+        } catch (e: Exception) {
+            android.util.Log.e("EmbeddingService", "Failed to create embedding", e)
+            throw e
+        }
     }
 }
