@@ -6,11 +6,17 @@ class PromptBuilder {
 
         question: String,
 
+        history: List<ChatMessage>,
+
         chunks: List<Chunk>
 
     ): String {
 
         val builder = StringBuilder()
+
+        //--------------------------------------------------
+        // System instructions
+        //--------------------------------------------------
 
         builder.appendLine(
             "Ты помощник, который отвечает ИСКЛЮЧИТЕЛЬНО на основе предоставленного контекста."
@@ -61,7 +67,7 @@ class PromptBuilder {
         builder.appendLine()
 
         builder.appendLine(
-            "Во всех остальных случаях ОБЯЗАТЕЛЬНО используй следующий формат:"
+            "Если информации достаточно, обязательно используй следующий формат:"
         )
 
         builder.appendLine()
@@ -91,13 +97,65 @@ class PromptBuilder {
         )
 
         builder.appendLine(
-            "- <короткая цитата из найденного чанка>"
+            "- <короткая цитата>"
         )
 
         builder.appendLine()
 
+        //--------------------------------------------------
+        // Chat history
+        //--------------------------------------------------
+
         builder.appendLine(
-            "Контекст:"
+            "========================================"
+        )
+
+        builder.appendLine(
+            "История диалога"
+        )
+
+        builder.appendLine(
+            "========================================"
+        )
+
+        builder.appendLine()
+
+        if (history.isEmpty()) {
+
+            builder.appendLine(
+                "История отсутствует."
+            )
+
+        } else {
+
+            history.forEach { message ->
+
+                builder.appendLine(
+                    "${message.role}:"
+                )
+
+                builder.appendLine(
+                    message.text
+                )
+
+                builder.appendLine()
+            }
+        }
+
+        //--------------------------------------------------
+        // RAG Context
+        //--------------------------------------------------
+
+        builder.appendLine(
+            "========================================"
+        )
+
+        builder.appendLine(
+            "Контекст"
+        )
+
+        builder.appendLine(
+            "========================================"
         )
 
         builder.appendLine()
@@ -139,12 +197,40 @@ class PromptBuilder {
             builder.appendLine()
         }
 
+        //--------------------------------------------------
+        // User question
+        //--------------------------------------------------
+
         builder.appendLine(
-            "Вопрос:"
+            "========================================"
         )
 
         builder.appendLine(
+            "Вопрос пользователя"
+        )
+
+        builder.appendLine(
+            "========================================"
+        )
+
+        builder.appendLine()
+
+        builder.appendLine(
             question
+        )
+
+        builder.appendLine()
+
+        builder.appendLine(
+            "Ответь строго по указанному формату."
+        )
+
+        builder.appendLine(
+            "Не используй информацию вне контекста."
+        )
+
+        builder.appendLine(
+            "Обязательно укажи источники и цитаты."
         )
 
         return builder.toString()
