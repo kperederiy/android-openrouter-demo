@@ -29,6 +29,7 @@ class MainActivity : ComponentActivity() {
 
         val apiKey = getApiKey()
 
+        // Создаем SimpleAgent один раз
         val agent = SimpleAgent(
             apiKey = apiKey
         )
@@ -44,6 +45,7 @@ class MainActivity : ComponentActivity() {
             apiKey = apiKey
         )
 
+        // Передаем тот же agent в RagAgent
         val ragAgent = RagAgent(
 
             context = this,
@@ -125,6 +127,11 @@ class MainActivity : ComponentActivity() {
                 mutableStateOf(false)
             }
 
+            // ✅ НОВОЕ: выбор провайдера для чата
+            var chatProvider by remember {
+                mutableStateOf(LlmProvider.OPEN_ROUTER)
+            }
+
             var isIndexing by remember {
                 mutableStateOf(false)
             }
@@ -175,6 +182,11 @@ class MainActivity : ComponentActivity() {
                 mutableStateOf(
                     AgentMode.SIMPLE
                 )
+            }
+
+            // ✅ НОВОЕ: выбор провайдера для бенчмарка
+            var benchmarkProvider by remember {
+                mutableStateOf(LlmProvider.OPEN_ROUTER)
             }
 
             fun rebuildIndex() {
@@ -259,11 +271,10 @@ class MainActivity : ComponentActivity() {
 
                     benchmarkStatus = "Начало Benchmark..."
 
-                    val results = benchmarkRunner.runBenchmark {
-
-                            current,
-
-                            total ->
+                    // ✅ Используем выбранный провайдер
+                    val results = benchmarkRunner.runBenchmark(
+                        provider = benchmarkProvider
+                    ) { current, total ->
 
                         runOnUiThread {
 
@@ -294,6 +305,11 @@ class MainActivity : ComponentActivity() {
                         builder.appendLine(result.question)
                         builder.appendLine()
 
+                        builder.appendLine("Simple (${if (benchmarkProvider == LlmProvider.OPEN_ROUTER) "Cloud" else "Local"}):")
+                        builder.appendLine(result.simpleAnswer)
+                        builder.appendLine()
+
+                        builder.appendLine("RAG (${if (benchmarkProvider == LlmProvider.OPEN_ROUTER) "Cloud" else "Local"}):")
                         builder.appendLine(result.ragAnswer)
 
                         builder.appendLine()
@@ -307,6 +323,81 @@ class MainActivity : ComponentActivity() {
                     benchmarkStatus = "Benchmark завершён"
 
                     isBenchmarkRunning = false
+                }
+            }
+
+            // Функция для отправки запроса с выбранным провайдером
+            fun sendRequest(provider: LlmProvider) {
+
+                if (userInput.isBlank()) {
+                    return
+                }
+
+                isLoading = true
+
+                // Переключаем провайдер
+                when (provider) {
+                    LlmProvider.OPEN_ROUTER -> agent.useOpenRouter()
+                    LlmProvider.OLLAMA -> agent.useOllama()
+                }
+
+                when (selectedAgentMode) {
+
+                    AgentMode.SIMPLE -> {
+
+                        agent.processRequest(
+
+                            userInput,
+
+                            onSuccess = { answer ->
+
+                                runOnUiThread {
+
+                                    responseText = answer
+
+                                    isLoading = false
+                                }
+                            },
+
+                            onError = { error ->
+
+                                runOnUiThread {
+
+                                    responseText = error
+
+                                    isLoading = false
+                                }
+                            }
+                        )
+                    }
+
+                    AgentMode.RAG -> {
+
+                        ragAgent.processRequest(
+
+                            question = userInput,
+
+                            onSuccess = { answer ->
+
+                                runOnUiThread {
+
+                                    responseText = answer
+
+                                    isLoading = false
+                                }
+                            },
+
+                            onError = { error ->
+
+                                runOnUiThread {
+
+                                    responseText = error
+
+                                    isLoading = false
+                                }
+                            }
+                        )
+                    }
                 }
             }
 
@@ -327,6 +418,7 @@ class MainActivity : ComponentActivity() {
                             .padding(16.dp)
                     ) {
 
+                        // --- Настройки чанкинга ---
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.Start
@@ -390,6 +482,40 @@ class MainActivity : ComponentActivity() {
                         Spacer(
                             modifier = Modifier.height(8.dp)
                         )
+
+                        // --- BENCHMARK СЕКЦИЯ ---
+
+                        Text(
+                            text = "Benchmark",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+
+                        // ✅ Выбор провайдера для бенчмарка
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Start
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(end = 16.dp)
+                            ) {
+                                RadioButton(
+                                    selected = benchmarkProvider == LlmProvider.OPEN_ROUTER,
+                                    onClick = { benchmarkProvider = LlmProvider.OPEN_ROUTER }
+                                )
+                                Text("Cloud (OpenRouter)")
+                            }
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = benchmarkProvider == LlmProvider.OLLAMA,
+                                    onClick = { benchmarkProvider = LlmProvider.OLLAMA }
+                                )
+                                Text("Local (Ollama)")
+                            }
+                        }
 
                         Button(
 
@@ -644,6 +770,15 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
+                        // --- ЧАТ СЕКЦИЯ ---
+
+                        Text(
+                            text = "Чат с ИИ",
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+
+                        // ✅ Выбор режима (Simple/RAG)
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.Start
@@ -681,78 +816,34 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.fillMaxWidth()
                         )
 
-                        Button(
-                            enabled = !isLoading,
-                            onClick = {
+                        Spacer(modifier = Modifier.height(8.dp))
 
-                                if (userInput.isBlank()) {
-                                    return@Button
-                                }
-
-                                isLoading = true
-
-                                when (selectedAgentMode) {
-
-                                    AgentMode.SIMPLE -> {
-
-                                        agent.processRequest(
-
-                                            userInput,
-
-                                            onSuccess = { answer ->
-
-                                                runOnUiThread {
-
-                                                    responseText = answer
-
-                                                    isLoading = false
-                                                }
-                                            },
-
-                                            onError = { error ->
-
-                                                runOnUiThread {
-
-                                                    responseText = error
-
-                                                    isLoading = false
-                                                }
-                                            }
-                                        )
-                                    }
-
-                                    AgentMode.RAG -> {
-
-                                        ragAgent.processRequest(
-
-                                            question = userInput,
-
-                                            onSuccess = { answer ->
-
-                                                runOnUiThread {
-
-                                                    responseText = answer
-
-                                                    isLoading = false
-                                                }
-                                            },
-
-                                            onError = { error ->
-
-                                                runOnUiThread {
-
-                                                    responseText = error
-
-                                                    isLoading = false
-                                                }
-                                            }
-                                        )
-                                    }
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth()
+                        // ✅ ДВЕ КНОПКИ: Cloud и Local
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text("Отправить")
+                            Button(
+                                enabled = !isLoading && userInput.isNotBlank(),
+                                onClick = {
+                                    // Отправка через OpenRouter (Cloud)
+                                    sendRequest(LlmProvider.OPEN_ROUTER)
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("☁️ Cloud")
+                            }
+
+                            Button(
+                                enabled = !isLoading && userInput.isNotBlank(),
+                                onClick = {
+                                    // Отправка через Ollama (Local)
+                                    sendRequest(LlmProvider.OLLAMA)
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("💻 Local")
+                            }
                         }
 
                         Spacer(

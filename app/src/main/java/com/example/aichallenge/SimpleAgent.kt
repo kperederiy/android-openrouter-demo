@@ -1,133 +1,116 @@
 package com.example.aichallenge
 
-import okhttp3.*
-import okhttp3.MediaType.Companion.toMediaType
-import org.json.JSONArray
-import org.json.JSONObject
-import java.io.IOException
-
 class SimpleAgent(
-    private val apiKey: String
+
+    apiKey: String
+
 ) {
 
-    companion object {
+    //--------------------------------------------------
+    // OpenRouter
+    //--------------------------------------------------
 
-        private const val MODEL =
-            "openai/gpt-4o-mini"
-    }
+    private val openRouterClient =
 
-    private val client = OkHttpClient()
+        OpenRouterClient(
+
+            apiKey = apiKey
+
+        )
+
+    //--------------------------------------------------
+    // Ollama
+    //--------------------------------------------------
+
+    private val ollamaClient =
+
+        OllamaClient()
+
+    //--------------------------------------------------
+    // текущий провайдер
+    //--------------------------------------------------
+
+    var provider =
+
+        LlmProvider.OPEN_ROUTER
+
+    //--------------------------------------------------
 
     fun processRequest(
+
         userRequest: String,
+
         onSuccess: (String) -> Unit,
+
         onError: (String) -> Unit
+
     ) {
 
-        val prompt = userRequest
+        when (provider) {
 
-        val json = JSONObject()
+            //--------------------------------------------------
 
-        json.put(
-            "model",
-            MODEL
-        )
+            LlmProvider.OPEN_ROUTER ->
 
-        val messages = JSONArray()
+                openRouterClient.generate(
 
-        messages.put(
-            JSONObject().apply {
+                    prompt = userRequest,
 
-                put(
-                    "role",
-                    "user"
+                    onSuccess = onSuccess,
+
+                    onError = onError
+
                 )
 
-                put(
-                    "content",
-                    prompt
+            //--------------------------------------------------
+
+            LlmProvider.OLLAMA ->
+
+                ollamaClient.generate(
+
+                    prompt = userRequest,
+
+                    onSuccess = onSuccess,
+
+                    onError = onError
+
                 )
-            }
-        )
+        }
+    }
 
-        json.put(
-            "messages",
-            messages
-        )
+    //--------------------------------------------------
 
-        val body =
-            RequestBody.create(
-                "application/json".toMediaType(),
-                json.toString()
-            )
+    fun useOpenRouter() {
 
-        val request =
-            Request.Builder()
-                .url(
-                    "https://openrouter.ai/api/v1/chat/completions"
-                )
-                .addHeader(
-                    "Authorization",
-                    "Bearer $apiKey"
-                )
-                .addHeader(
-                    "Content-Type",
-                    "application/json"
-                )
-                .post(body)
-                .build()
+        provider =
 
-        client.newCall(request)
-            .enqueue(
-                object : Callback {
+            LlmProvider.OPEN_ROUTER
+    }
 
-                    override fun onFailure(
-                        call: Call,
-                        e: IOException
-                    ) {
+    //--------------------------------------------------
 
-                        onError(
-                            "Ошибка сети: ${e.message}"
-                        )
-                    }
+    fun useOllama() {
 
-                    override fun onResponse(
-                        call: Call,
-                        response: Response
-                    ) {
+        provider =
 
-                        val responseBody =
-                            response.body?.string()
-                                ?: ""
+            LlmProvider.OLLAMA
+    }
 
-                        if (!response.isSuccessful) {
+    //--------------------------------------------------
 
-                            onError(
-                                "HTTP ${response.code}\n$responseBody"
-                            )
+    fun isUsingOllama(): Boolean {
 
-                            return
-                        }
+        return provider ==
 
-                        try {
+                LlmProvider.OLLAMA
+    }
 
-                            val answer =
-                                JSONObject(responseBody)
-                                    .getJSONArray("choices")
-                                    .getJSONObject(0)
-                                    .getJSONObject("message")
-                                    .getString("content")
+    //--------------------------------------------------
 
-                            onSuccess(answer)
+    fun isUsingOpenRouter(): Boolean {
 
-                        } catch (e: Exception) {
+        return provider ==
 
-                            onError(
-                                "Ошибка обработки ответа: ${e.message}"
-                            )
-                        }
-                    }
-                }
-            )
+                LlmProvider.OPEN_ROUTER
     }
 }

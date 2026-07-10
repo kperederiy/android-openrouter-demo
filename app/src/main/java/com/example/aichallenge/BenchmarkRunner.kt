@@ -13,10 +13,15 @@ class BenchmarkRunner(
 ) {
 
     suspend fun runBenchmark(
-
+        provider: LlmProvider,
         onProgress: (Int, Int) -> Unit
-
     ): List<BenchmarkResult> {
+
+        // Переключаем модель перед запуском
+        when (provider) {
+            LlmProvider.OPEN_ROUTER -> simpleAgent.useOpenRouter()
+            LlmProvider.OLLAMA -> simpleAgent.useOllama()
+        }
 
         val results = mutableListOf<BenchmarkResult>()
 
