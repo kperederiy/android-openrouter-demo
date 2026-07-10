@@ -1,14 +1,12 @@
 package com.example.aichallenge
 
+
 class SimpleAgent(
 
     apiKey: String
 
 ) {
 
-    //--------------------------------------------------
-    // OpenRouter
-    //--------------------------------------------------
 
     private val openRouterClient =
 
@@ -18,39 +16,47 @@ class SimpleAgent(
 
         )
 
-    //--------------------------------------------------
-    // Ollama
-    //--------------------------------------------------
+
 
     private val ollamaClient =
 
         OllamaClient()
 
-    //--------------------------------------------------
-    // текущий провайдер
-    //--------------------------------------------------
+
+
+    private val localPromptBuilder =
+
+        LocalPromptBuilder()
+
+
 
     var provider =
 
         LlmProvider.OPEN_ROUTER
 
-    //--------------------------------------------------
+
 
     fun processRequest(
 
+
         userRequest: String,
+
 
         onSuccess: (String) -> Unit,
 
+
         onError: (String) -> Unit
+
 
     ) {
 
-        when (provider) {
 
-            //--------------------------------------------------
+        when(provider) {
 
-            LlmProvider.OPEN_ROUTER ->
+
+
+            LlmProvider.OPEN_ROUTER -> {
+
 
                 openRouterClient.generate(
 
@@ -62,55 +68,69 @@ class SimpleAgent(
 
                 )
 
-            //--------------------------------------------------
+            }
 
-            LlmProvider.OLLAMA ->
+
+
+            LlmProvider.OLLAMA -> {
+
+
+                val localPrompt =
+
+                    localPromptBuilder.buildRagPrompt(
+
+                        userRequest
+
+                    )
+
+
 
                 ollamaClient.generate(
 
-                    prompt = userRequest,
+                    prompt = localPrompt,
 
                     onSuccess = onSuccess,
 
                     onError = onError
 
                 )
+
+            }
+
         }
+
     }
 
-    //--------------------------------------------------
 
-    fun useOpenRouter() {
+
+    fun useOpenRouter(){
 
         provider =
 
             LlmProvider.OPEN_ROUTER
+
     }
 
-    //--------------------------------------------------
 
-    fun useOllama() {
+
+    fun useOllama(){
 
         provider =
 
             LlmProvider.OLLAMA
+
     }
 
-    //--------------------------------------------------
 
-    fun isUsingOllama(): Boolean {
 
-        return provider ==
+    fun isUsingOllama(): Boolean =
 
-                LlmProvider.OLLAMA
-    }
+        provider == LlmProvider.OLLAMA
 
-    //--------------------------------------------------
 
-    fun isUsingOpenRouter(): Boolean {
 
-        return provider ==
+    fun isUsingOpenRouter(): Boolean =
 
-                LlmProvider.OPEN_ROUTER
-    }
+        provider == LlmProvider.OPEN_ROUTER
+
 }

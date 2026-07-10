@@ -1,5 +1,6 @@
 package com.example.aichallenge
 
+
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.MediaType.Companion.toMediaType
@@ -10,46 +11,106 @@ import okhttp3.Response
 import org.json.JSONObject
 import java.io.IOException
 
+
 class OllamaClient {
 
-    companion object {
-
-        private const val URL =
-            "http://10.0.2.2:11434/api/generate"
-
-        private const val MODEL =
-            "mistral:7b-instruct-v0.3-q4_K_M"
-    }
 
     private val client =
+
         OkHttpClient()
+
+
 
     fun generate(
 
+
         prompt: String,
+
 
         onSuccess: (String) -> Unit,
 
+
         onError: (String) -> Unit
+
 
     ) {
 
+
         val json = JSONObject()
 
+
+
         json.put(
+
             "model",
-            MODEL
+
+            OllamaConfig.MODEL
+
         )
 
+
         json.put(
+
             "prompt",
+
             prompt
+
         )
 
+
         json.put(
+
             "stream",
+
             false
+
         )
+
+
+
+        /*
+            Параметры генерации
+        */
+
+        val options = JSONObject()
+
+
+        options.put(
+
+            "temperature",
+
+            OllamaConfig.TEMPERATURE
+
+        )
+
+
+        options.put(
+
+            "num_predict",
+
+            OllamaConfig.MAX_TOKENS
+
+        )
+
+
+        options.put(
+
+            "num_ctx",
+
+            OllamaConfig.NUM_CTX
+
+        )
+
+
+        json.put(
+
+            "options",
+
+            options
+
+        )
+
+
 
         val body =
 
@@ -61,21 +122,31 @@ class OllamaClient {
 
             )
 
+
+
         val request =
 
             Request.Builder()
 
-                .url(URL)
+                .url(
+
+                    OllamaConfig.URL
+
+                )
 
                 .post(body)
 
                 .build()
+
+
 
         client.newCall(request)
 
             .enqueue(
 
                 object : Callback {
+
+
 
                     override fun onFailure(
 
@@ -85,12 +156,16 @@ class OllamaClient {
 
                     ) {
 
+
                         onError(
 
-                            "Ошибка сети: ${e.message}"
+                            "Ошибка Ollama: ${e.message}"
 
                         )
+
                     }
+
+
 
                     override fun onResponse(
 
@@ -100,19 +175,33 @@ class OllamaClient {
 
                     ) {
 
+
                         val responseBody =
-                            response.body?.string() ?: ""
+
+                            response.body?.string()
+
+                                ?: ""
+
+
 
                         if (!response.isSuccessful) {
 
+
                             onError(
+
                                 "HTTP ${response.code}\n$responseBody"
+
                             )
 
+
                             return
+
                         }
 
+
+
                         try {
+
 
                             val answer =
 
@@ -120,18 +209,29 @@ class OllamaClient {
 
                                     .getString("response")
 
+
+
                             onSuccess(answer)
+
+
 
                         } catch (e: Exception) {
 
+
                             onError(
 
-                                "Ошибка обработки ответа: ${e.message}"
+                                "Ошибка ответа Ollama: ${e.message}"
 
                             )
+
                         }
+
                     }
+
                 }
+
             )
+
     }
+
 }
