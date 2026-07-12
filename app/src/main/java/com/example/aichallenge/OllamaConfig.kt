@@ -5,8 +5,7 @@ object OllamaConfig {
 
 
     const val URL =
-
-        "http://10.0.2.2:11434/api/generate"
+        "https://overeager-syrup-gawk.ngrok-free.dev/api/chat"
 
 
 
@@ -26,7 +25,7 @@ object OllamaConfig {
         Для RAG лучше низкое значение
     */
 
-    const val TEMPERATURE = 0.2
+    const val TEMPERATURE = 0.5
 
 
 

@@ -1,6 +1,5 @@
 package com.example.aichallenge
 
-
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.MediaType.Companion.toMediaType
@@ -8,37 +7,31 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.Response
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 
-
 class OllamaClient {
-
 
     private val client =
 
         OkHttpClient()
 
+    fun chat(
 
-
-    fun generate(
-
-
-        prompt: String,
-
+        messages: List<ChatMessage>,
 
         onSuccess: (String) -> Unit,
 
-
         onError: (String) -> Unit
-
 
     ) {
 
-
         val json = JSONObject()
 
-
+        //--------------------------------------------------
+        // модель
+        //--------------------------------------------------
 
         json.put(
 
@@ -48,15 +41,46 @@ class OllamaClient {
 
         )
 
+        //--------------------------------------------------
+        // сообщения
+        //--------------------------------------------------
+
+        val messagesJson = JSONArray()
+
+        messages.forEach { message ->
+
+            val item = JSONObject()
+
+            item.put(
+
+                "role",
+
+                message.role
+
+            )
+
+            item.put(
+
+                "content",
+
+                message.text
+
+            )
+
+            messagesJson.put(item)
+        }
 
         json.put(
 
-            "prompt",
+            "messages",
 
-            prompt
+            messagesJson
 
         )
 
+        //--------------------------------------------------
+        // stream
+        //--------------------------------------------------
 
         json.put(
 
@@ -66,14 +90,11 @@ class OllamaClient {
 
         )
 
-
-
-        /*
-            Параметры генерации
-        */
+        //--------------------------------------------------
+        // options
+        //--------------------------------------------------
 
         val options = JSONObject()
-
 
         options.put(
 
@@ -83,7 +104,6 @@ class OllamaClient {
 
         )
 
-
         options.put(
 
             "num_predict",
@@ -91,7 +111,6 @@ class OllamaClient {
             OllamaConfig.MAX_TOKENS
 
         )
-
 
         options.put(
 
@@ -101,7 +120,6 @@ class OllamaClient {
 
         )
 
-
         json.put(
 
             "options",
@@ -110,7 +128,9 @@ class OllamaClient {
 
         )
 
-
+        //--------------------------------------------------
+        // request
+        //--------------------------------------------------
 
         val body =
 
@@ -121,8 +141,6 @@ class OllamaClient {
                 json.toString()
 
             )
-
-
 
         val request =
 
@@ -138,15 +156,15 @@ class OllamaClient {
 
                 .build()
 
-
+        //--------------------------------------------------
+        // execute
+        //--------------------------------------------------
 
         client.newCall(request)
 
             .enqueue(
 
                 object : Callback {
-
-
 
                     override fun onFailure(
 
@@ -156,16 +174,12 @@ class OllamaClient {
 
                     ) {
 
-
                         onError(
 
                             "Ошибка Ollama: ${e.message}"
 
                         )
-
                     }
-
-
 
                     override fun onResponse(
 
@@ -175,17 +189,13 @@ class OllamaClient {
 
                     ) {
 
-
                         val responseBody =
 
                             response.body?.string()
 
                                 ?: ""
 
-
-
                         if (!response.isSuccessful) {
-
 
                             onError(
 
@@ -193,45 +203,39 @@ class OllamaClient {
 
                             )
 
-
                             return
-
                         }
 
-
-
                         try {
-
 
                             val answer =
 
                                 JSONObject(responseBody)
 
-                                    .getString("response")
+                                    .getJSONObject(
 
+                                        "message"
 
+                                    )
+
+                                    .getString(
+
+                                        "content"
+
+                                    )
 
                             onSuccess(answer)
 
-
-
                         } catch (e: Exception) {
-
 
                             onError(
 
                                 "Ошибка ответа Ollama: ${e.message}"
 
                             )
-
                         }
-
                     }
-
                 }
-
             )
-
     }
-
 }

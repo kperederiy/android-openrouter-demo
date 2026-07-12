@@ -1,12 +1,14 @@
 package com.example.aichallenge
 
-
 class SimpleAgent(
 
     apiKey: String
 
 ) {
 
+    //--------------------------------------------------
+    // OpenRouter
+    //--------------------------------------------------
 
     private val openRouterClient =
 
@@ -16,47 +18,57 @@ class SimpleAgent(
 
         )
 
-
+    //--------------------------------------------------
+    // Ollama
+    //--------------------------------------------------
 
     private val ollamaClient =
 
         OllamaClient()
 
-
+    //--------------------------------------------------
+    // Prompt Builder
+    //--------------------------------------------------
 
     private val localPromptBuilder =
 
         LocalPromptBuilder()
 
+    //--------------------------------------------------
+    // История локального чата
+    //--------------------------------------------------
 
+    private val conversationHistory =
+
+        ConversationHistory()
+
+    //--------------------------------------------------
+    // Текущий провайдер
+    //--------------------------------------------------
 
     var provider =
 
         LlmProvider.OPEN_ROUTER
 
-
+    //--------------------------------------------------
 
     fun processRequest(
 
-
         userRequest: String,
-
 
         onSuccess: (String) -> Unit,
 
-
         onError: (String) -> Unit
-
 
     ) {
 
+        when (provider) {
 
-        when(provider) {
-
-
+            //--------------------------------------------------
+            // OpenRouter
+            //--------------------------------------------------
 
             LlmProvider.OPEN_ROUTER -> {
-
 
                 openRouterClient.generate(
 
@@ -67,15 +79,15 @@ class SimpleAgent(
                     onError = onError
 
                 )
-
             }
 
-
+            //--------------------------------------------------
+            // Ollama Chat
+            //--------------------------------------------------
 
             LlmProvider.OLLAMA -> {
 
-
-                val localPrompt =
+                val prompt =
 
                     localPromptBuilder.buildRagPrompt(
 
@@ -83,27 +95,61 @@ class SimpleAgent(
 
                     )
 
+                //--------------------------------------------------
+                // добавляем вопрос пользователя
+                //--------------------------------------------------
 
+                conversationHistory.addUser(
 
-                ollamaClient.generate(
+                    prompt
 
-                    prompt = localPrompt,
+                )
 
-                    onSuccess = onSuccess,
+                //--------------------------------------------------
+                // отправляем всю историю
+                //--------------------------------------------------
+
+                ollamaClient.chat(
+
+                    messages =
+
+                        conversationHistory.getMessages(),
+
+                    onSuccess = { answer ->
+
+                        //--------------------------------------------------
+                        // сохраняем ответ
+                        //--------------------------------------------------
+
+                        conversationHistory.addAssistant(
+
+                            answer
+
+                        )
+
+                        onSuccess(answer)
+                    },
 
                     onError = onError
 
                 )
-
             }
-
         }
+    }
+
+    //--------------------------------------------------
+    // Очистить историю
+    //--------------------------------------------------
+
+    fun clearConversation() {
+
+        conversationHistory.clear()
 
     }
 
+    //--------------------------------------------------
 
-
-    fun useOpenRouter(){
+    fun useOpenRouter() {
 
         provider =
 
@@ -111,9 +157,9 @@ class SimpleAgent(
 
     }
 
+    //--------------------------------------------------
 
-
-    fun useOllama(){
+    fun useOllama() {
 
         provider =
 
@@ -121,13 +167,13 @@ class SimpleAgent(
 
     }
 
-
+    //--------------------------------------------------
 
     fun isUsingOllama(): Boolean =
 
         provider == LlmProvider.OLLAMA
 
-
+    //--------------------------------------------------
 
     fun isUsingOpenRouter(): Boolean =
 

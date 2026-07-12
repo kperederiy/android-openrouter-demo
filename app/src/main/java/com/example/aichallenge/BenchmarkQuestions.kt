@@ -6,52 +6,52 @@ object BenchmarkQuestions {
 
         BenchmarkQuestion(
             id = 1,
-            question = "Расскажи кратко, что такое Kotlin."
+            question = "Что такое Kotlin?"
         ),
 
         BenchmarkQuestion(
             id = 2,
-            question = "Какие базовые типы данных есть в этом языке?"
+            question = "Какие типы данных есть?"
         ),
 
         BenchmarkQuestion(
             id = 3,
-            question = "Какие коллекции ты упоминал?"
+            question = "А какие из них nullable?"
         ),
 
         BenchmarkQuestion(
             id = 4,
-            question = "Чем map отличается от filter?"
+            question = "Напомни первый вопрос."
         ),
 
         BenchmarkQuestion(
             id = 5,
-            question = "Какая особенность функций расширения?"
+            question = "Теперь расскажи про data class."
         ),
 
         BenchmarkQuestion(
             id = 6,
-            question = "Теперь перейдём к Android. Что такое Activity?"
+            question = "Как это связано с null safety?"
         ),
 
         BenchmarkQuestion(
             id = 7,
-            question = "А какой у неё жизненный цикл?"
+            question = "Что такое Activity?"
         ),
 
         BenchmarkQuestion(
             id = 8,
-            question = "Что такое Fragment и как он взаимодействует с предыдущим компонентом?"
+            question = "А Fragment?"
         ),
 
         BenchmarkQuestion(
             id = 9,
-            question = "Что такое Jetpack Compose?"
+            question = "Сравни их."
         ),
 
         BenchmarkQuestion(
             id = 10,
-            question = "Какая температура плавления алюминия?"
+            question = "Итог разговора."
         )
     )
 }
