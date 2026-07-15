@@ -6,7 +6,8 @@ import kotlinx.coroutines.runBlocking
 class RagAgent(
     private val context: Context,
     private val embeddingService: EmbeddingService,
-    private val simpleAgent: SimpleAgent
+    private val simpleAgent: SimpleAgent,
+    private val mcpClient: McpClient
 ) {
     private val indexSearcher = IndexSearcher(
         context = context,
@@ -28,6 +29,24 @@ class RagAgent(
         onSuccess: (String) -> Unit,
         onError: (String) -> Unit
     ) {
+
+        if(question.startsWith("/help")) {
+
+
+            handleHelp(
+
+                question,
+
+                onSuccess,
+
+                onError
+
+            )
+
+            return
+
+        }
+
         Thread {
             try {
                 Log.d("RagAgent", "Processing question: $question")
@@ -106,6 +125,64 @@ class RagAgent(
                 onError(e.message ?: "Ошибка RAG")
             }
         }.start()
+    }
+
+    private fun handleHelp(
+
+        question:String,
+
+        onSuccess:(String)->Unit,
+
+        onError:(String)->Unit
+
+    ){
+
+        mcpClient.callTool(
+
+            "list_files",
+
+            { files ->
+
+
+                val prompt = """
+
+Ты помощник разработчика.
+
+Информация о структуре проекта:
+
+$files
+
+
+Ответь на вопрос:
+
+$question
+
+
+Покажи:
+- структуру проекта
+- важные файлы
+- назначение компонентов
+
+""".trimIndent()
+
+
+
+                simpleAgent.processRequest(
+
+                    prompt,
+
+                    onSuccess,
+
+                    onError
+
+                )
+
+            },
+
+            onError
+
+        )
+
     }
 
     fun clearMemory() {

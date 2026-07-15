@@ -48,6 +48,7 @@ android {
 }
 
 dependencies {
+    implementation("com.google.code.gson:gson:2.13.1")
     // Используем библиотеки из TOML
     implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)

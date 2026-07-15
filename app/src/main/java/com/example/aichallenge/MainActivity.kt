@@ -45,6 +45,8 @@ class MainActivity : ComponentActivity() {
             apiKey = apiKey
         )
 
+        val mcpClient = McpClient()
+
         // Передаем тот же agent в RagAgent
         val ragAgent = RagAgent(
 
@@ -52,7 +54,9 @@ class MainActivity : ComponentActivity() {
 
             embeddingService = embeddingService,
 
-            simpleAgent = agent
+            simpleAgent = agent,
+
+            mcpClient = mcpClient
         )
 
         val indexInitializer = IndexInitializer(

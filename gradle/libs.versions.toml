@@ -12,6 +12,7 @@ composeBom = "2024.09.00"
 kotlinxSerialization = "1.6.3"
 kotlinxCoroutines = "1.7.3"
 okhttp = "4.12.0"
+jetbrainsKotlinJvm = "2.2.10"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -40,3 +41,4 @@ kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 # Добавляем плагин сериализации
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+jetbrains-kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "jetbrainsKotlinJvm" }

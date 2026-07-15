@@ -5,7 +5,7 @@ object OllamaConfig {
 
 
     const val URL =
-        "https://overeager-syrup-gawk.ngrok-free.dev/api/chat"
+        "http://10.0.2.2:11434/api/chat"
 
 
 

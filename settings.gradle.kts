@@ -21,3 +21,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "aichallenge"
 include(":app")
+include(":mcp-server")
