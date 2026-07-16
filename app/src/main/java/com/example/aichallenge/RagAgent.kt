@@ -14,6 +14,8 @@ class RagAgent(
         embeddingService = embeddingService
     )
     private val promptBuilder = PromptBuilder()
+    private val developerPromptBuilder =
+        DeveloperPromptBuilder()
     private val queryRewriter = QueryRewriter()
 
     // Снижаем порог до 0.3
@@ -128,60 +130,133 @@ class RagAgent(
     }
 
     private fun handleHelp(
+        question: String,
+        onSuccess: (String) -> Unit,
+        onError: (String) -> Unit
+    ) {
 
-        question:String,
+        Thread {
 
-        onSuccess:(String)->Unit,
+            try {
 
-        onError:(String)->Unit
+                //--------------------------------------------------
+                // Убираем команду /help
+                //--------------------------------------------------
 
-    ){
+                val realQuestion =
+                    question.removePrefix("/help").trim()
 
-        mcpClient.callTool(
+                //--------------------------------------------------
+                // Ищем документацию
+                //--------------------------------------------------
 
-            "list_files",
+                val results = runBlocking {
 
-            { files ->
+                    indexSearcher.search(
 
+                        question = realQuestion,
 
-                val prompt = """
+                        topK = 3
 
-Ты помощник разработчика.
+                    )
 
-Информация о структуре проекта:
+                }
 
-$files
+                //--------------------------------------------------
+                // Собираем документацию
+                //--------------------------------------------------
 
+                val documentation = buildString {
 
-Ответь на вопрос:
+                    results.forEach {
 
-$question
+                        appendLine(
+                            "Файл: ${it.chunk.fileName}"
+                        )
 
+                        appendLine()
 
-Покажи:
-- структуру проекта
-- важные файлы
-- назначение компонентов
+                        appendLine(
+                            it.chunk.text
+                        )
 
-""".trimIndent()
+                        appendLine()
 
+                        appendLine("--------------------------------")
 
+                    }
 
-                simpleAgent.processRequest(
+                }
 
-                    prompt,
+                //--------------------------------------------------
+                // Получаем список файлов
+                //--------------------------------------------------
 
-                    onSuccess,
+                //--------------------------------------------------
+// Получаем Git Branch
+//--------------------------------------------------
 
-                    onError
+                mcpClient.getBranch(
+
+                    onSuccess = { branch ->
+
+                        //--------------------------------------------------
+                        // Затем получаем список файлов
+                        //--------------------------------------------------
+
+                        mcpClient.getFiles(
+
+                            onSuccess = { files ->
+
+                                val prompt =
+
+                                    developerPromptBuilder.buildPrompt(
+
+                                        question = realQuestion,
+
+                                        documentation = documentation,
+
+                                        projectFiles = files,
+
+                                        gitBranch = branch
+
+                                    )
+
+                                simpleAgent.processRequest(
+
+                                    userRequest = prompt,
+
+                                    onSuccess = onSuccess,
+
+                                    onError = onError
+
+                                )
+
+                            },
+
+                            onError = onError
+
+                        )
+
+                    },
+
+                    onError = onError
 
                 )
 
-            },
+            }
 
-            onError
+            catch (e: Exception) {
 
-        )
+                onError(
+
+                    e.message ?: "Ошибка"
+
+                )
+
+            }
+
+        }.start()
 
     }
 

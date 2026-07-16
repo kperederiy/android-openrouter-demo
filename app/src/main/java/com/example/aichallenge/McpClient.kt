@@ -1,50 +1,49 @@
 package com.example.aichallenge
 
-import okhttp3.*
 import com.google.gson.Gson
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody
+import okhttp3.Response
 import java.io.IOException
 
-
 class McpClient {
-
 
     private val client =
         OkHttpClient()
 
-
     private val gson =
         Gson()
-
 
     private val serverUrl =
         "http://10.0.2.2:8080/mcp"
 
+    //----------------------------------------------------
+    // Общий вызов MCP Tool
+    //----------------------------------------------------
 
-
-    fun callTool(
+    private fun callTool(
 
         tool: String,
 
-        onSuccess: (String)->Unit,
+        onSuccess: (String) -> Unit,
 
-        onError: (String)->Unit
+        onError: (String) -> Unit
 
     ) {
 
-
-        val requestObject =
+        val json = gson.toJson(
 
             mapOf(
+
                 "tool" to tool
+
             )
 
-
-        val json =
-
-            gson.toJson(requestObject)
-
-
+        )
 
         val body =
 
@@ -56,8 +55,6 @@ class McpClient {
 
             )
 
-
-
         val request =
 
             Request.Builder()
@@ -68,14 +65,11 @@ class McpClient {
 
                 .build()
 
-
-
         client.newCall(request)
 
             .enqueue(
 
-                object: Callback {
-
+                object : Callback {
 
                     override fun onFailure(
 
@@ -86,12 +80,12 @@ class McpClient {
                     ) {
 
                         onError(
+
                             e.message ?: "MCP error"
+
                         )
 
                     }
-
-
 
                     override fun onResponse(
 
@@ -101,22 +95,113 @@ class McpClient {
 
                     ) {
 
+                        onSuccess(
 
-                        val text =
+                            response.body?.string() ?: ""
 
-                            response.body
-                                ?.string()
-                                ?: ""
-
-
-
-                        onSuccess(text)
+                        )
 
                     }
 
                 }
 
             )
+
+    }
+
+    //----------------------------------------------------
+    // Git Branch
+    //----------------------------------------------------
+
+    fun getBranch(
+
+        onSuccess: (String) -> Unit,
+
+        onError: (String) -> Unit
+
+    ) {
+
+        callTool(
+
+            "git_branch",
+
+            onSuccess,
+
+            onError
+
+        )
+
+    }
+
+    //----------------------------------------------------
+    // Git Status
+    //----------------------------------------------------
+
+    fun getStatus(
+
+        onSuccess: (String) -> Unit,
+
+        onError: (String) -> Unit
+
+    ) {
+
+        callTool(
+
+            "git_status",
+
+            onSuccess,
+
+            onError
+
+        )
+
+    }
+
+    //----------------------------------------------------
+    // Project Files
+    //----------------------------------------------------
+
+    fun getFiles(
+
+        onSuccess: (String) -> Unit,
+
+        onError: (String) -> Unit
+
+    ) {
+
+        callTool(
+
+            "list_files",
+
+            onSuccess,
+
+            onError
+
+        )
+
+    }
+
+    //----------------------------------------------------
+    // Git Diff
+    //----------------------------------------------------
+
+    fun getDiff(
+
+        onSuccess: (String) -> Unit,
+
+        onError: (String) -> Unit
+
+    ) {
+
+        callTool(
+
+            "git_diff",
+
+            onSuccess,
+
+            onError
+
+        )
 
     }
 

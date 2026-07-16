@@ -47,7 +47,6 @@ class MainActivity : ComponentActivity() {
 
         val mcpClient = McpClient()
 
-        // Передаем тот же agent в RagAgent
         val ragAgent = RagAgent(
 
             context = this,
