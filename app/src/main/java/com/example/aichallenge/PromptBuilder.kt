@@ -235,4 +235,199 @@ class PromptBuilder {
 
         return builder.toString()
     }
+
+    fun buildReviewPrompt(
+
+        gitBranch: String,
+
+        gitDiff: String,
+
+        projectFiles: String,
+
+        chunks: List<Chunk>
+
+    ): String {
+
+        val builder = StringBuilder()
+
+        //--------------------------------------------------
+        // System
+        //--------------------------------------------------
+
+        builder.appendLine(
+            "Ты Senior Android Kotlin разработчик."
+        )
+
+        builder.appendLine()
+
+        builder.appendLine(
+            "Ты выполняешь Code Review Pull Request."
+        )
+
+        builder.appendLine()
+
+        builder.appendLine(
+            "Используй ТОЛЬКО предоставленную информацию."
+        )
+
+        builder.appendLine()
+
+        builder.appendLine(
+            "Во время анализа учитывай:"
+        )
+
+        builder.appendLine("- документацию проекта")
+        builder.appendLine("- архитектуру проекта")
+        builder.appendLine("- текущую git-ветку")
+        builder.appendLine("- список файлов проекта")
+        builder.appendLine("- git diff")
+
+        builder.appendLine()
+
+        builder.appendLine(
+            "Найди:"
+        )
+
+        builder.appendLine("1. Возможные ошибки")
+        builder.appendLine("2. Архитектурные проблемы")
+        builder.appendLine("3. Нарушения документации")
+        builder.appendLine("4. Что можно улучшить")
+        builder.appendLine("5. Что сделано хорошо")
+
+        builder.appendLine()
+
+        builder.appendLine(
+            "Ответь строго в формате:"
+        )
+
+        builder.appendLine()
+
+        builder.appendLine("## Summary")
+        builder.appendLine()
+
+        builder.appendLine("## Bugs")
+        builder.appendLine()
+
+        builder.appendLine("## Architecture")
+        builder.appendLine()
+
+        builder.appendLine("## Documentation")
+        builder.appendLine()
+
+        builder.appendLine("## Recommendations")
+        builder.appendLine()
+
+        //--------------------------------------------------
+        // RAG
+        //--------------------------------------------------
+
+        builder.appendLine(
+            "========================================"
+        )
+
+        builder.appendLine(
+            "Документация проекта"
+        )
+
+        builder.appendLine(
+            "========================================"
+        )
+
+        builder.appendLine()
+
+        chunks.forEachIndexed { index, chunk ->
+
+            builder.appendLine("Фрагмент ${index + 1}")
+
+            builder.appendLine("source=${chunk.source}")
+
+            builder.appendLine("file=${chunk.fileName}")
+
+            builder.appendLine("section=${chunk.section}")
+
+            builder.appendLine()
+
+            builder.appendLine(chunk.text)
+
+            builder.appendLine()
+
+            builder.appendLine("----------------------------------------")
+
+            builder.appendLine()
+
+        }
+
+        //--------------------------------------------------
+        // Branch
+        //--------------------------------------------------
+
+        builder.appendLine(
+            "========================================"
+        )
+
+        builder.appendLine(
+            "Git Branch"
+        )
+
+        builder.appendLine(
+            "========================================"
+        )
+
+        builder.appendLine()
+
+        builder.appendLine(gitBranch)
+
+        builder.appendLine()
+
+        //--------------------------------------------------
+        // Files
+        //--------------------------------------------------
+
+        builder.appendLine(
+            "========================================"
+        )
+
+        builder.appendLine(
+            "Project Files"
+        )
+
+        builder.appendLine(
+            "========================================"
+        )
+
+        builder.appendLine()
+
+        builder.appendLine(projectFiles)
+
+        builder.appendLine()
+
+        //--------------------------------------------------
+        // Diff
+        //--------------------------------------------------
+
+        builder.appendLine(
+            "========================================"
+        )
+
+        builder.appendLine(
+            "Git Diff"
+        )
+
+        builder.appendLine(
+            "========================================"
+        )
+
+        builder.appendLine()
+
+        builder.appendLine(gitDiff)
+
+        builder.appendLine()
+
+        builder.appendLine(
+            "Выполни полноценное Code Review."
+        )
+
+        return builder.toString()
+
+    }
 }

@@ -14,6 +14,8 @@ class RagAgent(
         embeddingService = embeddingService
     )
     private val promptBuilder = PromptBuilder()
+    private val reviewPromptBuilder =
+        ReviewPromptBuilder()
     private val developerPromptBuilder =
         DeveloperPromptBuilder()
     private val queryRewriter = QueryRewriter()
@@ -38,6 +40,20 @@ class RagAgent(
             handleHelp(
 
                 question,
+
+                onSuccess,
+
+                onError
+
+            )
+
+            return
+
+        }
+
+        if (question.startsWith("/review")) {
+
+            handleReview(
 
                 onSuccess,
 
@@ -129,6 +145,95 @@ class RagAgent(
         }.start()
     }
 
+    private fun handleReview(
+
+        onSuccess: (String) -> Unit,
+
+        onError: (String) -> Unit
+
+    ) {
+
+        //--------------------------------------------------
+        // Получаем текущую ветку
+        //--------------------------------------------------
+
+        mcpClient.getBranch(
+
+            onSuccess = { branch ->
+
+                //--------------------------------------------------
+                // Получаем git diff
+                //--------------------------------------------------
+
+                mcpClient.getDiff(
+
+                    onSuccess = { diff ->
+
+                        //--------------------------------------------------
+                        // Получаем список файлов
+                        //--------------------------------------------------
+
+                        mcpClient.getFiles(
+
+                            onSuccess = { files ->
+
+                                //--------------------------------------------------
+                                // Получаем документацию (RAG)
+                                //--------------------------------------------------
+
+                                buildProjectDocumentation(
+
+                                    onSuccess = { chunks ->
+
+                                        val prompt =
+
+                                            promptBuilder.buildReviewPrompt(
+
+                                                gitBranch = branch,
+
+                                                gitDiff = diff,
+
+                                                projectFiles = files,
+
+                                                chunks = chunks
+
+                                            )
+
+                                        simpleAgent.processRequest(
+
+                                            userRequest = prompt,
+
+                                            onSuccess = onSuccess,
+
+                                            onError = onError
+
+                                        )
+
+                                    },
+
+                                    onError = onError
+
+                                )
+
+                            },
+
+                            onError = onError
+
+                        )
+
+                    },
+
+                    onError = onError
+
+                )
+
+            },
+
+            onError = onError
+
+        )
+
+    }
     private fun handleHelp(
         question: String,
         onSuccess: (String) -> Unit,
@@ -251,6 +356,84 @@ class RagAgent(
                 onError(
 
                     e.message ?: "Ошибка"
+
+                )
+
+            }
+
+        }.start()
+
+    }
+
+    fun buildProjectDocumentation(
+
+        onSuccess: (List<Chunk>) -> Unit,
+
+        onError: (String) -> Unit
+
+    ) {
+
+        Thread {
+
+            try {
+
+                //--------------------------------------------------
+                // Ищем документацию проекта
+                //--------------------------------------------------
+
+                val searchResults = runBlocking {
+
+                    indexSearcher.search(
+
+                        question = "README project documentation architecture api docs",
+
+                        topK = 20
+
+                    )
+
+                }
+
+                //--------------------------------------------------
+                // Оставляем только релевантные документы
+                //--------------------------------------------------
+
+                val filtered =
+
+                    similarityFilter.filter(searchResults)
+
+                //--------------------------------------------------
+                // Если ничего нет
+                //--------------------------------------------------
+
+                if (filtered.isEmpty()) {
+
+                    onSuccess(emptyList())
+
+                    return@Thread
+
+                }
+
+                //--------------------------------------------------
+                // Возвращаем Chunk
+                //--------------------------------------------------
+
+                val chunks =
+
+                    filtered.map {
+
+                        it.chunk
+
+                    }
+
+                onSuccess(chunks)
+
+            }
+
+            catch (e: Exception) {
+
+                onError(
+
+                    e.message ?: "Ошибка RAG"
 
                 )
 
