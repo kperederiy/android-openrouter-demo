@@ -13,9 +13,16 @@ fun main() {
 
     val fileService = FileService()
 
+    val crmService = CrmService()
+
     val router = McpRouter(
-        gitService,
-        fileService
+
+        gitService = gitService,
+
+        fileService = fileService,
+
+        crmService = crmService
+
     )
 
     val gson = Gson()
@@ -48,13 +55,18 @@ Developer MCP Server
 
 Available endpoints:
 
-GET /
-GET /branch
-GET /status
-GET /diff
-GET /files
-
 POST /mcp
+
+MCP Tools
+
+git_branch
+git_status
+git_diff
+list_files
+
+crm_users
+crm_tickets
+crm_user_context
     """.trimIndent()
         )
     }

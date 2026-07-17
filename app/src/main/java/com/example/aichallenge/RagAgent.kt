@@ -14,10 +14,10 @@ class RagAgent(
         embeddingService = embeddingService
     )
     private val promptBuilder = PromptBuilder()
-    private val reviewPromptBuilder =
-        ReviewPromptBuilder()
     private val developerPromptBuilder =
         DeveloperPromptBuilder()
+    private val supportPromptBuilder =
+        SupportPromptBuilder()
     private val queryRewriter = QueryRewriter()
 
     // Снижаем порог до 0.3
@@ -63,6 +63,21 @@ class RagAgent(
 
             return
 
+        }
+
+        if (question.startsWith("/support")) {
+
+            handleSupport(
+
+                question,
+
+                onSuccess,
+
+                onError
+
+            )
+
+            return
         }
 
         Thread {
@@ -143,6 +158,116 @@ class RagAgent(
                 onError(e.message ?: "Ошибка RAG")
             }
         }.start()
+    }
+
+    private fun handleSupport(
+
+        question: String,
+
+        onSuccess: (String) -> Unit,
+
+        onError: (String) -> Unit
+
+    ) {
+
+        Thread {
+
+            try {
+
+                val realQuestion =
+
+                    question.removePrefix("/support").trim()
+
+                //--------------------------------------------------
+                // RAG
+                //--------------------------------------------------
+
+                val results = runBlocking {
+
+                    indexSearcher.search(
+
+                        question = realQuestion,
+
+                        topK = 5
+
+                    )
+
+                }
+
+                val documentation = buildString {
+
+                    results.forEach {
+
+                        appendLine(it.chunk.text)
+
+                        appendLine()
+
+                    }
+
+                }
+
+                //--------------------------------------------------
+                // CRM
+                //--------------------------------------------------
+
+                mcpClient.getUserContext(
+
+                    onSuccess = { user ->
+
+                        mcpClient.getTickets(
+
+                            onSuccess = { tickets ->
+
+                                val prompt =
+
+                                    supportPromptBuilder.buildPrompt(
+
+                                        question = realQuestion,
+
+                                        documentation = documentation,
+
+                                        userContext = user,
+
+                                        tickets = tickets
+
+                                    )
+
+                                simpleAgent.processRequest(
+
+                                    userRequest = prompt,
+
+                                    onSuccess = onSuccess,
+
+                                    onError = onError
+
+                                )
+
+                            },
+
+                            onError = onError
+
+                        )
+
+                    },
+
+                    onError = onError
+
+                )
+
+            }
+
+            catch (e: Exception) {
+
+                onError(
+
+                    e.message ?: "Support error"
+
+                )
+
+            }
+
+        }.start()
+
     }
 
     private fun handleReview(

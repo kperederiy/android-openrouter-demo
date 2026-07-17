@@ -1,0 +1,14 @@
+[
+  {
+    "id":1,
+    "name":"Иван Иванов",
+    "email":"ivan@test.ru",
+    "plan":"Premium"
+  },
+  {
+    "id":2,
+    "name":"Петр Петров",
+    "email":"petr@test.ru",
+    "plan":"Free"
+  }
+]

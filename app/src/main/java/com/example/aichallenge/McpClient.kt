@@ -205,4 +205,37 @@ class McpClient {
 
     }
 
+    fun getUsers(
+        onSuccess: (String) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        callTool(
+            "crm_users",
+            onSuccess,
+            onError
+        )
+    }
+
+    fun getTickets(
+        onSuccess: (String) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        callTool(
+            "crm_tickets",
+            onSuccess,
+            onError
+        )
+    }
+
+    fun getUserContext(
+        onSuccess: (String) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        callTool(
+            "crm_user_context",
+            onSuccess,
+            onError
+        )
+    }
+
 }

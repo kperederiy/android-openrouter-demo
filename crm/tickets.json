@@ -1,0 +1,23 @@
+[
+  {
+    "id":145,
+    "userId":1,
+    "title":"Не работает авторизация",
+    "status":"OPEN",
+    "priority":"HIGH"
+  },
+  {
+    "id":146,
+    "userId":1,
+    "title":"Ошибка оплаты",
+    "status":"OPEN",
+    "priority":"MEDIUM"
+  },
+  {
+    "id":200,
+    "userId":2,
+    "title":"Не приходит письмо",
+    "status":"CLOSED",
+    "priority":"LOW"
+  }
+]
