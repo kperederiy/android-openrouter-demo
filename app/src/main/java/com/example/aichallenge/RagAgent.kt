@@ -19,6 +19,8 @@ class RagAgent(
     private val supportPromptBuilder =
         SupportPromptBuilder()
     private val queryRewriter = QueryRewriter()
+    private val router =
+        AgentRouter()
 
     // Снижаем порог до 0.3
     private val similarityFilter = SimilarityFilter(
@@ -34,87 +36,95 @@ class RagAgent(
         onError: (String) -> Unit
     ) {
 
-        if(question.startsWith("/help")) {
+        val intent =
 
+            router.detectIntent(question)
 
-            handleHelp(
+        when (intent) {
 
-                question,
+            AgentIntent.HELP -> {
 
-                onSuccess,
+                handleHelp(
 
-                onError
+                    question,
 
-            )
+                    onSuccess,
 
-            return
+                    onError
 
-        }
+                )
 
-        if (question.startsWith("/review")) {
+                return
 
-            handleReview(
+            }
 
-                onSuccess,
+            AgentIntent.REVIEW -> {
 
-                onError
+                handleReview(
 
-            )
+                    onSuccess,
 
-            return
+                    onError
 
-        }
+                )
 
-        if (question.startsWith("/support")) {
+                return
 
-            handleSupport(
+            }
 
-                question,
+            AgentIntent.SUPPORT -> {
 
-                onSuccess,
+                handleSupport(
 
-                onError
+                    question,
 
-            )
+                    onSuccess,
 
-            return
-        }
+                    onError
 
-        Thread {
-            try {
-                Log.d("RagAgent", "Processing question: $question")
-                chatMemory.addUserMessage(question)
+                )
 
-                val rewrittenQuestion = queryRewriter.rewrite(question)
-                Log.d("RagAgent", "Rewritten: $rewrittenQuestion")
+                return
 
-                val searchResults = runBlocking {
-                    indexSearcher.search(
-                        question = rewrittenQuestion,
-                        topK = 10
-                    )
-                }
+            }
 
-                Log.d("RagAgent", "Found ${searchResults.size} results")
+            AgentIntent.RAG -> {
 
-                // Логируем максимальное сходство
-                if (searchResults.isNotEmpty()) {
-                    val maxSim = searchResults.maxOf { it.similarity }
-                    Log.d("RagAgent", "Max similarity: $maxSim")
-                }
+                Thread {
+                    try {
+                        Log.d("RagAgent", "Processing question: $question")
+                        chatMemory.addUserMessage(question)
 
-                // Фильтруем результаты
-                val filteredResults = similarityFilter.filter(searchResults)
-                Log.d("RagAgent", "Filtered to ${filteredResults.size} results")
+                        val rewrittenQuestion = queryRewriter.rewrite(question)
+                        Log.d("RagAgent", "Rewritten: $rewrittenQuestion")
 
-                val chunks = filteredResults.map { it.chunk }
+                        val searchResults = runBlocking {
+                            indexSearcher.search(
+                                question = rewrittenQuestion,
+                                topK = 10
+                            )
+                        }
 
-                // ✅ ИСПРАВЛЕНО: Если нет релевантных чанков - возвращаем "Не знаю"
-                // БЕЗ вызова SimpleAgent как fallback
-                if (chunks.isEmpty()) {
-                    Log.w("RagAgent", "No relevant chunks found (similarity < threshold)")
+                        Log.d("RagAgent", "Found ${searchResults.size} results")
 
-                    val answer = """
+                        // Логируем максимальное сходство
+                        if (searchResults.isNotEmpty()) {
+                            val maxSim = searchResults.maxOf { it.similarity }
+                            Log.d("RagAgent", "Max similarity: $maxSim")
+                        }
+
+                        // Фильтруем результаты
+                        val filteredResults = similarityFilter.filter(searchResults)
+                        Log.d("RagAgent", "Filtered to ${filteredResults.size} results")
+
+                        val chunks = filteredResults.map { it.chunk }
+
+                        // ✅ ИСПРАВЛЕНО: Если нет релевантных чанков - возвращаем "Не знаю"
+                        // БЕЗ вызова SimpleAgent как fallback
+                        if (chunks.isEmpty()) {
+                            Log.w("RagAgent", "No relevant chunks found (similarity < threshold)")
+
+                            val answer = """
 Ответ:
 Не знаю. Пожалуйста, уточните вопрос.
 
@@ -125,39 +135,43 @@ class RagAgent(
 нет
                     """.trimIndent()
 
-                    chatMemory.addAssistantMessage(answer)
-                    onSuccess(answer)
-                    return@Thread
-                }
+                            chatMemory.addAssistantMessage(answer)
+                            onSuccess(answer)
+                            return@Thread
+                        }
 
-                // Строим промпт ТОЛЬКО с релевантными чанками
-                val prompt = promptBuilder.buildPrompt(
-                    question = question,
-                    history = chatMemory.getMessages(),
-                    chunks = chunks
-                )
+                        // Строим промпт ТОЛЬКО с релевантными чанками
+                        val prompt = promptBuilder.buildPrompt(
+                            question = question,
+                            history = chatMemory.getMessages(),
+                            chunks = chunks
+                        )
 
-                Log.d("RagAgent", "Prompt length: ${prompt.length}")
+                        Log.d("RagAgent", "Prompt length: ${prompt.length}")
 
-                // Используем SimpleAgent ТОЛЬКО для генерации ответа на основе контекста
-                simpleAgent.processRequest(
-                    userRequest = prompt,
-                    onSuccess = { answer ->
-                        Log.d("RagAgent", "LLM answered successfully")
-                        chatMemory.addAssistantMessage(answer)
-                        onSuccess(answer)
-                    },
-                    onError = { error ->
-                        Log.e("RagAgent", error)
-                        onError(error)
+                        // Используем SimpleAgent ТОЛЬКО для генерации ответа на основе контекста
+                        simpleAgent.processRequest(
+                            userRequest = prompt,
+                            onSuccess = { answer ->
+                                Log.d("RagAgent", "LLM answered successfully")
+                                chatMemory.addAssistantMessage(answer)
+                                onSuccess(answer)
+                            },
+                            onError = { error ->
+                                Log.e("RagAgent", error)
+                                onError(error)
+                            }
+                        )
+
+                    } catch (e: Exception) {
+                        Log.e("RagAgent", "Error", e)
+                        onError(e.message ?: "Ошибка RAG")
                     }
-                )
+                }.start()
 
-            } catch (e: Exception) {
-                Log.e("RagAgent", "Error", e)
-                onError(e.message ?: "Ошибка RAG")
             }
-        }.start()
+
+        }
     }
 
     private fun handleSupport(

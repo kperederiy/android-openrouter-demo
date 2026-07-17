@@ -2,26 +2,86 @@ package com.example.aichallenge
 
 class AgentRouter {
 
-    fun detectAgent(
+    fun detectIntent(
         question: String
-    ): AgentType {
+    ): AgentIntent {
 
-        val q = question.lowercase()
+        val q = question.lowercase().trim()
 
-        return when {
+        //--------------------------------------------------
+        // Явные команды
+        //--------------------------------------------------
 
-            q.startsWith("/review") ->
-                AgentType.REVIEW
+        if (q.startsWith("/review"))
+            return AgentIntent.REVIEW
 
-            q.startsWith("/help") ->
-                AgentType.DEVELOPER
+        if (q.startsWith("/help"))
+            return AgentIntent.HELP
 
-            q.startsWith("/support") ->
-                AgentType.SUPPORT
+        if (q.startsWith("/support"))
+            return AgentIntent.SUPPORT
 
-            else ->
-                AgentType.CHAT
+        //--------------------------------------------------
+        // Разработка
+        //--------------------------------------------------
+
+        if (
+
+            q.contains("архитектур") ||
+
+            q.contains("код") ||
+
+            q.contains("класс") ||
+
+            q.contains("файл") ||
+
+            q.contains("git") ||
+
+            q.contains("branch") ||
+
+            q.contains("diff") ||
+
+            q.contains("review") ||
+
+            q.contains("mcp")
+
+        ) {
+
+            return AgentIntent.HELP
+
         }
+
+        //--------------------------------------------------
+        // Поддержка
+        //--------------------------------------------------
+
+        if (
+
+            q.contains("авториза") ||
+
+            q.contains("логин") ||
+
+            q.contains("не работает") ||
+
+            q.contains("ошибка") ||
+
+            q.contains("не могу") ||
+
+            q.contains("тикет") ||
+
+            q.contains("аккаунт") ||
+
+            q.contains("пароль")
+
+        ) {
+
+            return AgentIntent.SUPPORT
+
+        }
+
+        //--------------------------------------------------
+
+        return AgentIntent.RAG
 
     }
 

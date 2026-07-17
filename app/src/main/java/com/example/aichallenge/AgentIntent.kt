@@ -1,10 +1,10 @@
 package com.example.aichallenge
 
-enum class AgentType {
+enum class AgentIntent {
 
-    CHAT,
+    RAG,
 
-    DEVELOPER,
+    HELP,
 
     REVIEW,
 
