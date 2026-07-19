@@ -8,6 +8,8 @@ enum class AgentIntent {
 
     REVIEW,
 
-    SUPPORT
+    SUPPORT,
+
+    FILES
 
 }

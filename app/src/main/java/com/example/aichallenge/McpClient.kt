@@ -29,6 +29,8 @@ class McpClient {
 
         tool: String,
 
+        arguments: Map<String, String> = emptyMap(),
+
         onSuccess: (String) -> Unit,
 
         onError: (String) -> Unit
@@ -39,7 +41,9 @@ class McpClient {
 
             mapOf(
 
-                "tool" to tool
+                "tool" to tool,
+
+                "arguments" to arguments
 
             )
 
@@ -110,7 +114,7 @@ class McpClient {
     }
 
     //----------------------------------------------------
-    // Git Branch
+    // Git
     //----------------------------------------------------
 
     fun getBranch(
@@ -123,19 +127,15 @@ class McpClient {
 
         callTool(
 
-            "git_branch",
+            tool = "git_branch",
 
-            onSuccess,
+            onSuccess = onSuccess,
 
-            onError
+            onError = onError
 
         )
 
     }
-
-    //----------------------------------------------------
-    // Git Status
-    //----------------------------------------------------
 
     fun getStatus(
 
@@ -147,18 +147,38 @@ class McpClient {
 
         callTool(
 
-            "git_status",
+            tool = "git_status",
 
-            onSuccess,
+            onSuccess = onSuccess,
 
-            onError
+            onError = onError
+
+        )
+
+    }
+
+    fun getDiff(
+
+        onSuccess: (String) -> Unit,
+
+        onError: (String) -> Unit
+
+    ) {
+
+        callTool(
+
+            tool = "git_diff",
+
+            onSuccess = onSuccess,
+
+            onError = onError
 
         )
 
     }
 
     //----------------------------------------------------
-    // Project Files
+    // Files
     //----------------------------------------------------
 
     fun getFiles(
@@ -171,21 +191,19 @@ class McpClient {
 
         callTool(
 
-            "list_files",
+            tool = "list_files",
 
-            onSuccess,
+            onSuccess = onSuccess,
 
-            onError
+            onError = onError
 
         )
 
     }
 
-    //----------------------------------------------------
-    // Git Diff
-    //----------------------------------------------------
+    fun readFile(
 
-    fun getDiff(
+        path: String,
 
         onSuccess: (String) -> Unit,
 
@@ -195,47 +213,212 @@ class McpClient {
 
         callTool(
 
-            "git_diff",
+            tool = "read_file",
 
-            onSuccess,
+            arguments = mapOf(
 
-            onError
+                "path" to path
+
+            ),
+
+            onSuccess = onSuccess,
+
+            onError = onError
 
         )
 
     }
+
+    fun searchText(
+
+        text: String,
+
+        onSuccess: (String) -> Unit,
+
+        onError: (String) -> Unit
+
+    ) {
+
+        callTool(
+
+            tool = "search_text",
+
+            arguments = mapOf(
+
+                "text" to text
+
+            ),
+
+            onSuccess = onSuccess,
+
+            onError = onError
+
+        )
+
+    }
+
+    fun writeFile(
+
+        path: String,
+
+        content: String,
+
+        onSuccess: (String) -> Unit,
+
+        onError: (String) -> Unit
+
+    ) {
+
+        callTool(
+
+            tool = "write_file",
+
+            arguments = mapOf(
+
+                "path" to path,
+
+                "content" to content
+
+            ),
+
+            onSuccess = onSuccess,
+
+            onError = onError
+
+        )
+
+    }
+
+    fun updateFile(
+
+        path: String,
+
+        content: String,
+
+        onSuccess: (String) -> Unit,
+
+        onError: (String) -> Unit
+
+    ) {
+
+        callTool(
+
+            tool = "update_file",
+
+            arguments = mapOf(
+
+                "path" to path,
+
+                "content" to content
+
+            ),
+
+            onSuccess = onSuccess,
+
+            onError = onError
+
+        )
+
+    }
+
+    fun replaceText(
+
+        path: String,
+
+        oldText: String,
+
+        newText: String,
+
+        onSuccess: (String) -> Unit,
+
+        onError: (String) -> Unit
+
+    ) {
+
+        callTool(
+
+            tool = "replace_text",
+
+            arguments = mapOf(
+
+                "path" to path,
+
+                "old" to oldText,
+
+                "new" to newText
+
+            ),
+
+            onSuccess = onSuccess,
+
+            onError = onError
+
+        )
+
+    }
+
+    //----------------------------------------------------
+    // CRM
+    //----------------------------------------------------
 
     fun getUsers(
+
         onSuccess: (String) -> Unit,
+
         onError: (String) -> Unit
+
     ) {
+
         callTool(
-            "crm_users",
-            onSuccess,
-            onError
+
+            tool = "crm_users",
+
+            onSuccess = onSuccess,
+
+            onError = onError
+
         )
+
     }
 
     fun getTickets(
+
         onSuccess: (String) -> Unit,
+
         onError: (String) -> Unit
+
     ) {
+
         callTool(
-            "crm_tickets",
-            onSuccess,
-            onError
+
+            tool = "crm_tickets",
+
+            onSuccess = onSuccess,
+
+            onError = onError
+
         )
+
     }
 
     fun getUserContext(
+
         onSuccess: (String) -> Unit,
+
         onError: (String) -> Unit
+
     ) {
+
         callTool(
-            "crm_user_context",
-            onSuccess,
-            onError
+
+            tool = "crm_user_context",
+
+            onSuccess = onSuccess,
+
+            onError = onError
+
         )
+
     }
 
 }

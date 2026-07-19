@@ -21,6 +21,9 @@ class AgentRouter {
         if (q.startsWith("/support"))
             return AgentIntent.SUPPORT
 
+        if (q.startsWith("/files"))
+            return AgentIntent.FILES
+
         //--------------------------------------------------
         // Разработка
         //--------------------------------------------------
@@ -76,6 +79,28 @@ class AgentRouter {
         ) {
 
             return AgentIntent.SUPPORT
+
+        }
+
+        if (
+
+            q.contains("readme") ||
+
+            q.contains("changelog") ||
+
+            q.contains("adr") ||
+
+            q.contains("обнови файл") ||
+
+            q.contains("создай файл") ||
+
+            q.contains("найди использование") ||
+
+            q.contains("проверь файлы")
+
+        ) {
+
+            return AgentIntent.FILES
 
         }
 

@@ -14,13 +14,15 @@ class McpRouter(
         request: McpRequest
     ): McpResponse {
 
+        val args = request.arguments
+
         val result =
 
             when (request.tool) {
 
-                //----------------------------------
+                //--------------------------------------------------
                 // Git
-                //----------------------------------
+                //--------------------------------------------------
 
                 "git_branch" ->
                     gitService.currentBranch()
@@ -31,16 +33,64 @@ class McpRouter(
                 "git_diff" ->
                     gitService.diff()
 
-                //----------------------------------
+                //--------------------------------------------------
                 // Files
-                //----------------------------------
+                //--------------------------------------------------
 
                 "list_files" ->
                     fileService.listFiles()
 
-                //----------------------------------
+                "read_file" ->
+
+                    fileService.readFile(
+
+                        args["path"] ?: ""
+
+                    )
+
+                "search_text" ->
+
+                    fileService.searchText(
+
+                        text = args["text"] ?: ""
+
+                    )
+
+                "write_file" ->
+
+                    fileService.writeFile(
+
+                        path = args["path"] ?: "",
+
+                        content = args["content"] ?: ""
+
+                    )
+
+                "update_file" ->
+
+                    fileService.updateFile(
+
+                        path = args["path"] ?: "",
+
+                        newContent = args["content"] ?: ""
+
+                    )
+
+                "replace_text" ->
+
+                    fileService.replaceText(
+
+                        path = args["path"] ?: "",
+
+                        oldText = args["old"] ?: "",
+
+                        newText = args["new"] ?: ""
+
+                    )
+
+                //--------------------------------------------------
                 // CRM
-                //----------------------------------
+                //--------------------------------------------------
 
                 "crm_users" ->
 
@@ -70,7 +120,7 @@ class McpRouter(
 
                     )
 
-                //----------------------------------
+                //--------------------------------------------------
 
                 else ->
 
@@ -79,8 +129,13 @@ class McpRouter(
             }
 
         return McpResponse(
+
             success = true,
+
             result = result
+
         )
+
     }
+
 }

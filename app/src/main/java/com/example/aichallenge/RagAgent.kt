@@ -88,6 +88,22 @@ class RagAgent(
 
             }
 
+            AgentIntent.FILES -> {
+
+                handleFiles(
+
+                    question,
+
+                    onSuccess,
+
+                    onError
+
+                )
+
+                return
+
+            }
+
             AgentIntent.RAG -> {
 
                 Thread {
@@ -172,6 +188,317 @@ class RagAgent(
             }
 
         }
+    }
+
+    private fun handleFiles(
+
+        question: String,
+
+        onSuccess: (String) -> Unit,
+
+        onError: (String) -> Unit
+
+    ) {
+
+        val command =
+
+            question.removePrefix("/files")
+                .trim()
+
+        when {
+
+            command.startsWith("find") -> {
+
+                handleFindUsages(
+
+                    command,
+
+                    onSuccess,
+
+                    onError
+
+                )
+
+            }
+
+            command.startsWith("update readme") -> {
+
+                handleUpdateReadme(
+
+                    onSuccess,
+
+                    onError
+
+                )
+
+            }
+
+            command.startsWith("generate changelog") -> {
+
+                handleGenerateChangelog(
+
+                    onSuccess,
+
+                    onError
+
+                )
+
+            }
+
+            command.startsWith("check") -> {
+
+                handleCheckProject(
+
+                    onSuccess,
+
+                    onError
+
+                )
+
+            }
+
+            else -> {
+
+                onSuccess(
+
+                    """
+Доступные команды:
+
+/files find <Component>
+
+/files update readme
+
+/files generate changelog
+
+/files check
+                """.trimIndent()
+
+                )
+
+            }
+
+        }
+
+    }
+
+    private fun handleFindUsages(
+
+        command: String,
+
+        onSuccess: (String) -> Unit,
+
+        onError: (String) -> Unit
+
+    ) {
+
+        val text =
+
+            command.removePrefix("find").trim()
+
+        mcpClient.searchText(
+
+            text = text,
+
+            onSuccess = onSuccess,
+
+            onError = onError
+
+        )
+
+    }
+
+    private fun handleUpdateReadme(
+
+        onSuccess: (String) -> Unit,
+
+        onError: (String) -> Unit
+
+    ) {
+
+        mcpClient.readFile(
+
+            path = "app/src/main/assets/README.md",
+
+            onSuccess = { readme ->
+
+                mcpClient.getDiff(
+
+                    onSuccess = { diff ->
+
+                        mcpClient.getFiles(
+
+                            onSuccess = { files ->
+
+                                val prompt = """
+
+Обнови README проекта.
+
+Текущий README:
+
+$readme
+
+Изменения Git:
+
+$diff
+
+Файлы проекта:
+
+$files
+
+Верни только новый README.
+
+""".trimIndent()
+
+                                simpleAgent.processRequest(
+
+                                    prompt,
+
+                                    onSuccess = { newReadme ->
+
+                                        mcpClient.updateFile(
+
+                                            path = "app/src/main/assets/README.md",
+
+                                            content = newReadme,
+
+                                            onSuccess = onSuccess,
+
+                                            onError = onError
+
+                                        )
+
+                                    },
+
+                                    onError = onError
+
+                                )
+
+                            },
+
+                            onError
+
+                        )
+
+                    },
+
+                    onError
+
+                )
+
+            },
+
+            onError
+
+        )
+
+    }
+
+    private fun handleGenerateChangelog(
+
+        onSuccess: (String) -> Unit,
+
+        onError: (String) -> Unit
+
+    ) {
+
+        mcpClient.getDiff(
+
+            onSuccess = { diff ->
+
+                val prompt = """
+
+Сгенерируй CHANGELOG.md.
+
+Git diff:
+
+$diff
+
+Верни только markdown.
+
+""".trimIndent()
+
+                simpleAgent.processRequest(
+
+                    prompt,
+
+                    onSuccess = { markdown ->
+
+                        mcpClient.writeFile(
+
+                            path = "CHANGELOG.md",
+
+                            content = markdown,
+
+                            onSuccess = onSuccess,
+
+                            onError = onError
+
+                        )
+
+                    },
+
+                    onError
+
+                )
+
+            },
+
+            onError
+
+        )
+
+    }
+
+    private fun handleCheckProject(
+
+        onSuccess: (String) -> Unit,
+
+        onError: (String) -> Unit
+
+    ) {
+
+        mcpClient.getFiles(
+
+            onSuccess = { files ->
+
+                val prompt = """
+
+Проверь проект.
+
+Файлы:
+
+$files
+
+Найди:
+
+- отсутствующий README
+
+- отсутствующий CHANGELOG
+
+- отсутствующий LICENSE
+
+- подозрительные файлы
+
+- нарушения структуры
+
+""".trimIndent()
+
+                simpleAgent.processRequest(
+
+                    prompt,
+
+                    onSuccess,
+
+                    onError
+
+                )
+
+            },
+
+            onError
+
+        )
+
     }
 
     private fun handleSupport(
