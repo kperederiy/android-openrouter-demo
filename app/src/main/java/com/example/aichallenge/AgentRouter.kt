@@ -24,6 +24,9 @@ class AgentRouter {
         if (q.startsWith("/files"))
             return AgentIntent.FILES
 
+        if (q.startsWith("/release"))
+            return AgentIntent.RELEASE
+
         //--------------------------------------------------
         // Разработка
         //--------------------------------------------------
@@ -101,6 +104,22 @@ class AgentRouter {
         ) {
 
             return AgentIntent.FILES
+
+        }
+
+        if (
+
+            q.contains("релиз") ||
+
+            q.contains("release") ||
+
+            q.contains("подготовить релиз") ||
+
+            q.contains("готов ли проект")
+
+        ) {
+
+            return AgentIntent.RELEASE
 
         }
 

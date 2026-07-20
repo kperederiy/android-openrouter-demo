@@ -18,6 +18,15 @@ class RagAgent(
         DeveloperPromptBuilder()
     private val supportPromptBuilder =
         SupportPromptBuilder()
+
+    private val releasePromptBuilder =
+        ReleasePromptBuilder()
+
+    private val releaseExecutor =
+        ReleaseExecutor(mcpClient)
+
+    private val releasePlanParser =
+        ReleasePlanParser()
     private val queryRewriter = QueryRewriter()
     private val router =
         AgentRouter()
@@ -93,6 +102,20 @@ class RagAgent(
                 handleFiles(
 
                     question,
+
+                    onSuccess,
+
+                    onError
+
+                )
+
+                return
+
+            }
+
+            AgentIntent.RELEASE -> {
+
+                handleRelease(
 
                     onSuccess,
 
@@ -188,6 +211,146 @@ class RagAgent(
             }
 
         }
+    }
+
+    private fun handleRelease(
+
+        onSuccess: (String) -> Unit,
+
+        onError: (String) -> Unit
+
+    ) {
+
+        //--------------------------------------------------
+        // Git Branch
+        //--------------------------------------------------
+
+        mcpClient.getBranch(
+
+            onSuccess = { branch ->
+
+                //--------------------------------------------------
+                // Git Status
+                //--------------------------------------------------
+
+                mcpClient.getStatus(
+
+                    onSuccess = { status ->
+
+                        //--------------------------------------------------
+                        // Git Diff
+                        //--------------------------------------------------
+
+                        mcpClient.getDiff(
+
+                            onSuccess = { diff ->
+
+                                //--------------------------------------------------
+                                // Project Files
+                                //--------------------------------------------------
+
+                                mcpClient.getFiles(
+
+                                    onSuccess = { files ->
+
+                                        //--------------------------------------------------
+                                        // RAG Documentation
+                                        //--------------------------------------------------
+
+                                        buildProjectDocumentation(
+
+                                            onSuccess = { chunks ->
+
+                                                //--------------------------------------------------
+                                                // Build Prompt
+                                                //--------------------------------------------------
+
+                                                val prompt =
+
+                                                    releasePromptBuilder.buildPrompt(
+
+                                                        gitBranch = branch,
+
+                                                        gitStatus = status,
+
+                                                        gitDiff = diff,
+
+                                                        projectFiles = files,
+
+                                                        documentation = chunks
+
+                                                    )
+
+                                                //--------------------------------------------------
+                                                // AI
+                                                //--------------------------------------------------
+
+                                                simpleAgent.processRequest(
+
+                                                    userRequest = prompt,
+
+                                                    onSuccess = { aiAnswer ->
+
+                                                        //--------------------------------------------------
+                                                        // AI -> ReleasePlan
+                                                        //--------------------------------------------------
+
+                                                        val plan =
+
+                                                            releasePlanParser.parse(
+                                                                aiAnswer
+                                                            )
+
+                                                        //--------------------------------------------------
+                                                        // Выполняем план
+                                                        //--------------------------------------------------
+
+                                                        releaseExecutor.execute(
+
+                                                            plan = plan,
+
+                                                            onSuccess = onSuccess,
+
+                                                            onError = onError
+
+                                                        )
+
+                                                    },
+
+                                                    onError = onError
+
+                                                )
+
+                                            },
+
+                                            onError = onError
+
+                                        )
+
+                                    },
+
+                                    onError = onError
+
+                                )
+
+                            },
+
+                            onError = onError
+
+                        )
+
+                    },
+
+                    onError = onError
+
+                )
+
+            },
+
+            onError = onError
+
+        )
+
     }
 
     private fun handleFiles(

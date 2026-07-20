@@ -13,29 +13,21 @@ class FileService {
 
     fun listFiles(): String {
 
-        val builder = StringBuilder()
-
-        projectDir
+        return projectDir
             .walkTopDown()
             .filter { it.isFile }
             .filterNot { it.path.contains(".git") }
             .filterNot { it.path.contains("build") }
             .filterNot { it.path.contains(".gradle") }
-            .forEach {
+            .joinToString("\n") {
 
-                builder.append(
+                projectDir
+                    .toPath()
+                    .relativize(it.toPath())
+                    .toString()
 
-                    projectDir
-                        .toPath()
-                        .relativize(it.toPath())
-                        .toString()
-
-                )
-
-                builder.append("\n")
             }
 
-        return builder.toString()
     }
 
     //----------------------------------------------------
@@ -62,10 +54,11 @@ class FileService {
         }
 
         return file.readText()
+
     }
 
     //----------------------------------------------------
-    // Поиск текста по проекту
+    // Поиск текста
     //----------------------------------------------------
 
     fun searchText(
@@ -86,53 +79,51 @@ class FileService {
             .filterNot { it.path.contains(".gradle") }
             .forEach { file ->
 
-                val lines =
-                    file.readLines()
+                file.readLines()
+                    .forEachIndexed { index, line ->
 
-                lines.forEachIndexed { index, line ->
+                        if (line.contains(text, true)) {
 
-                    if (line.contains(text, true)) {
+                            builder.appendLine(
+                                projectDir.toPath()
+                                    .relativize(file.toPath())
+                            )
 
-                        builder.appendLine(
-                            projectDir.toPath()
-                                .relativize(file.toPath())
-                        )
+                            builder.appendLine(
+                                "строка ${index + 1}"
+                            )
 
-                        builder.appendLine(
-                            "строка ${index + 1}"
-                        )
+                            builder.appendLine(
+                                line.trim()
+                            )
 
-                        builder.appendLine(
-                            line.trim()
-                        )
+                            builder.appendLine("--------------------------------")
 
-                        builder.appendLine(
-                            "--------------------------------"
-                        )
+                        }
+
                     }
-
-                }
 
             }
 
-        if (builder.isEmpty()) {
+        return if (builder.isEmpty()) {
 
-            return "Совпадений не найдено."
+            "Совпадений не найдено."
+
+        } else {
+
+            builder.toString()
+
         }
 
-        return builder.toString()
     }
 
     //----------------------------------------------------
-    // Создание или перезапись файла
+    // Создать файл
     //----------------------------------------------------
 
     fun writeFile(
-
         path: String,
-
         content: String
-
     ): String {
 
         if (path.isBlank()) {
@@ -148,35 +139,22 @@ class FileService {
 
         return buildString {
 
-            appendLine("Файл сохранён")
-
+            appendLine("Файл создан")
             appendLine()
-
-            appendLine(
-                projectDir.toPath()
-                    .relativize(file.toPath())
-            )
+            appendLine(path)
 
         }
+
     }
 
     //----------------------------------------------------
-    // Замена текста
+    // Полная замена файла
     //----------------------------------------------------
 
-    fun replaceText(
-
+    fun updateFile(
         path: String,
-
-        oldText: String,
-
-        newText: String
-
+        newContent: String
     ): String {
-
-        if (path.isBlank()) {
-            return "Путь не указан."
-        }
 
         val file =
             File(projectDir, path)
@@ -185,101 +163,219 @@ class FileService {
             return "Файл не найден."
         }
 
-        val source =
+        val before =
             file.readText()
-
-        if (!source.contains(oldText)) {
-
-            return "Текст для замены не найден."
-        }
-
-        val updated =
-
-            source.replace(
-
-                oldText,
-
-                newText
-
-            )
-
-        file.writeText(updated)
-
-        return buildString {
-
-            appendLine("Файл обновлён")
-
-            appendLine()
-
-            appendLine(
-                projectDir.toPath()
-                    .relativize(file.toPath())
-            )
-
-        }
-    }
-
-    fun updateFile(
-
-        path: String,
-
-        newContent: String
-
-    ): String {
-
-        val file = File(projectDir, path)
-
-        if (!file.exists()) {
-
-            return "Файл не найден."
-        }
-
-        val before = file.readText()
 
         file.writeText(newContent)
 
         return buildDiff(
-
-            path = path,
-
-            before = before,
-
-            after = newContent
-
+            path,
+            before,
+            newContent
         )
+
     }
 
-    private fun buildDiff(
+    //----------------------------------------------------
+    // Заменить текст
+    //----------------------------------------------------
 
+    fun replaceText(
         path: String,
-
-        before: String,
-
-        after: String
-
+        oldText: String,
+        newText: String
     ): String {
 
-        val oldLines = before.lines()
+        val file =
+            File(projectDir, path)
 
-        val newLines = after.lines()
+        if (!file.exists()) {
+            return "Файл не найден."
+        }
 
-        val builder = StringBuilder()
+        val before =
+            file.readText()
+
+        if (!before.contains(oldText)) {
+
+            return "Фрагмент не найден."
+
+        }
+
+        val after =
+            before.replace(
+                oldText,
+                newText
+            )
+
+        file.writeText(after)
+
+        return buildDiff(
+            path,
+            before,
+            after
+        )
+
+    }
+
+    //----------------------------------------------------
+    // Вставить после текста
+    //----------------------------------------------------
+
+    fun insertAfter(
+        path: String,
+        afterText: String,
+        text: String
+    ): String {
+
+        val file =
+            File(projectDir, path)
+
+        if (!file.exists()) {
+            return "Файл не найден."
+        }
+
+        val before =
+            file.readText()
+
+        val index =
+            before.indexOf(afterText)
+
+        if (index == -1) {
+            return "Фрагмент не найден."
+        }
+
+        val insertPosition =
+            index + afterText.length
+
+        val result =
+            before.substring(0, insertPosition) +
+                    text +
+                    before.substring(insertPosition)
+
+        file.writeText(result)
+
+        return buildDiff(
+            path,
+            before,
+            result
+        )
+
+    }
+
+    //----------------------------------------------------
+    // Вставить перед текстом
+    //----------------------------------------------------
+
+    fun insertBefore(
+        path: String,
+        beforeText: String,
+        text: String
+    ): String {
+
+        val file =
+            File(projectDir, path)
+
+        if (!file.exists()) {
+            return "Файл не найден."
+        }
+
+        val before =
+            file.readText()
+
+        val index =
+            before.indexOf(beforeText)
+
+        if (index == -1) {
+            return "Фрагмент не найден."
+        }
+
+        val result =
+            before.substring(0, index) +
+                    text +
+                    before.substring(index)
+
+        file.writeText(result)
+
+        return buildDiff(
+            path,
+            before,
+            result
+        )
+
+    }
+
+    //----------------------------------------------------
+    // Удалить блок
+    //----------------------------------------------------
+
+    fun deleteText(
+        path: String,
+        text: String
+    ): String {
+
+        val file =
+            File(projectDir, path)
+
+        if (!file.exists()) {
+            return "Файл не найден."
+        }
+
+        val before =
+            file.readText()
+
+        if (!before.contains(text)) {
+            return "Фрагмент не найден."
+        }
+
+        val after =
+            before.replace(text, "")
+
+        file.writeText(after)
+
+        return buildDiff(
+            path,
+            before,
+            after
+        )
+
+    }
+
+    //----------------------------------------------------
+    // Построение diff
+    //----------------------------------------------------
+
+    private fun buildDiff(
+        path: String,
+        before: String,
+        after: String
+    ): String {
+
+        val oldLines =
+            before.lines()
+
+        val newLines =
+            after.lines()
+
+        val builder =
+            StringBuilder()
 
         builder.appendLine("diff -- $path")
         builder.appendLine()
 
-        val max = maxOf(
-
-            oldLines.size,
-
-            newLines.size
-
-        )
+        val max =
+            maxOf(
+                oldLines.size,
+                newLines.size
+            )
 
         for (i in 0 until max) {
 
-            val oldLine = oldLines.getOrNull(i)
-            val newLine = newLines.getOrNull(i)
+            val oldLine =
+                oldLines.getOrNull(i)
+
+            val newLine =
+                newLines.getOrNull(i)
 
             when {
 
@@ -307,6 +403,101 @@ class FileService {
         }
 
         return builder.toString()
+
+    }
+
+    //----------------------------------------------------
+// Вставка текста после указанного блока
+//----------------------------------------------------
+
+    fun appendAfter(
+
+        path: String,
+
+        after: String,
+
+        text: String
+
+    ): String {
+
+        if (path.isBlank()) {
+
+            return "Путь не указан."
+
+        }
+
+
+        val file = File(
+
+            projectDir,
+
+            path
+
+        )
+
+
+        if (!file.exists()) {
+
+            return "Файл не найден."
+
+        }
+
+
+        val source = file.readText()
+
+
+        if (after.isBlank()) {
+
+            return "Точка вставки не указана."
+
+        }
+
+
+        if (!source.contains(after)) {
+
+            return buildString {
+
+                appendLine(
+                    "Текст для вставки не найден."
+                )
+
+                appendLine()
+
+                appendLine(
+                    "Искомый фрагмент:"
+                )
+
+                appendLine(after)
+
+            }
+
+        }
+
+
+        val before = source
+
+
+        val updated = source.replace(
+
+            after,
+
+            after + "\n" + text
+
+        )
+
+
+        file.writeText(updated)
+
+
+        return buildDiff(
+
+            path = path,
+
+            before = before,
+
+            after = updated
+
+        )
 
     }
 

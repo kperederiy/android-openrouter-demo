@@ -421,4 +421,40 @@ class McpClient {
 
     }
 
+    fun appendAfter(
+
+        path: String,
+
+        after: String,
+
+        text: String,
+
+        onSuccess: (String) -> Unit,
+
+        onError: (String) -> Unit
+
+    ) {
+
+        callTool(
+
+            tool = "append_after",
+
+            arguments = mapOf(
+
+                "path" to path,
+
+                "after" to after,
+
+                "text" to text
+
+            ),
+
+            onSuccess = onSuccess,
+
+            onError = onError
+
+        )
+
+    }
+
 }

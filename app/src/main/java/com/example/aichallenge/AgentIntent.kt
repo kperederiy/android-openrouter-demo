@@ -10,6 +10,7 @@ enum class AgentIntent {
 
     SUPPORT,
 
-    FILES
+    FILES,
 
+    RELEASE
 }

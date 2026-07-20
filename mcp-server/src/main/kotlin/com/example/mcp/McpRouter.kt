@@ -16,126 +16,92 @@ class McpRouter(
 
         val args = request.arguments
 
-        val result =
+        val result = when (request.tool) {
 
-            when (request.tool) {
+            //--------------------------------------------------
+            // Git
+            //--------------------------------------------------
 
-                //--------------------------------------------------
-                // Git
-                //--------------------------------------------------
+            "git_branch" ->
+                gitService.currentBranch()
 
-                "git_branch" ->
-                    gitService.currentBranch()
+            "git_status" ->
+                gitService.status()
 
-                "git_status" ->
-                    gitService.status()
+            "git_diff" ->
+                gitService.diff()
 
-                "git_diff" ->
-                    gitService.diff()
+            //--------------------------------------------------
+            // Files
+            //--------------------------------------------------
 
-                //--------------------------------------------------
-                // Files
-                //--------------------------------------------------
+            "list_files" ->
+                fileService.listFiles()
 
-                "list_files" ->
-                    fileService.listFiles()
+            "read_file" ->
+                fileService.readFile(
+                    args["path"] ?: ""
+                )
 
-                "read_file" ->
+            "search_text" ->
+                fileService.searchText(
+                    args["text"] ?: ""
+                )
 
-                    fileService.readFile(
+            "write_file" ->
+                fileService.writeFile(
+                    path = args["path"] ?: "",
+                    content = args["content"] ?: ""
+                )
 
-                        args["path"] ?: ""
+            "update_file" ->
+                fileService.updateFile(
+                    path = args["path"] ?: "",
+                    newContent = args["content"] ?: ""
+                )
 
-                    )
+            "replace_text" ->
+                fileService.replaceText(
+                    path = args["path"] ?: "",
+                    oldText = args["old"] ?: "",
+                    newText = args["new"] ?: ""
+                )
 
-                "search_text" ->
+            "append_after" ->
+                fileService.appendAfter(
+                    path = args["path"] ?: "",
+                    after = args["after"] ?: "",
+                    text = args["text"] ?: ""
+                )
 
-                    fileService.searchText(
+            //--------------------------------------------------
+            // CRM
+            //--------------------------------------------------
 
-                        text = args["text"] ?: ""
+            "crm_users" ->
+                crmService.loadUsers()
+                    .joinToString("\n") {
+                        "${it.id} | ${it.name} | ${it.email} | ${it.plan}"
+                    }
 
-                    )
+            "crm_tickets" ->
+                crmService.loadTickets()
+                    .joinToString("\n") {
+                        "#${it.id} user=${it.userId} ${it.title} ${it.status}"
+                    }
 
-                "write_file" ->
+            "crm_user_context" ->
+                crmService.buildUserContext(
+                    userId = 1
+                )
 
-                    fileService.writeFile(
-
-                        path = args["path"] ?: "",
-
-                        content = args["content"] ?: ""
-
-                    )
-
-                "update_file" ->
-
-                    fileService.updateFile(
-
-                        path = args["path"] ?: "",
-
-                        newContent = args["content"] ?: ""
-
-                    )
-
-                "replace_text" ->
-
-                    fileService.replaceText(
-
-                        path = args["path"] ?: "",
-
-                        oldText = args["old"] ?: "",
-
-                        newText = args["new"] ?: ""
-
-                    )
-
-                //--------------------------------------------------
-                // CRM
-                //--------------------------------------------------
-
-                "crm_users" ->
-
-                    crmService.loadUsers()
-
-                        .joinToString("\n") {
-
-                            "${it.id} | ${it.name} | ${it.email} | ${it.plan}"
-
-                        }
-
-                "crm_tickets" ->
-
-                    crmService.loadTickets()
-
-                        .joinToString("\n") {
-
-                            "#${it.id}  user=${it.userId}  ${it.title}  ${it.status}"
-
-                        }
-
-                "crm_user_context" ->
-
-                    crmService.buildUserContext(
-
-                        userId = 1
-
-                    )
-
-                //--------------------------------------------------
-
-                else ->
-
-                    "Unknown tool: ${request.tool}"
-
-            }
+            else ->
+                "Unknown tool: ${request.tool}"
+        }
 
         return McpResponse(
-
             success = true,
-
             result = result
-
         )
-
     }
-
 }
